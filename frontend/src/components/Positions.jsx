@@ -7,37 +7,30 @@ export default function Positions() {
   const { address } = useInterwovenKit();
   const { positions } = usePositions(address);
   const username = useUsername(address);
-  if (!address) return null;
-  const displayName = username || `${address?.slice(0,6)}...${address?.slice(-4)}`;
+  const displayName = username || (address ? `${address.slice(0,6)}...${address.slice(-4)}` : null);
 
   return (
     <div className="positions-wrap">
       <div className="positions-header">
-        <h3>Your Positions</h3>
-        <span className="positions-user">{displayName}</span>
+        <span className="pos-title">Positions</span>
+        {displayName && <span className="pos-user">{displayName}</span>}
       </div>
-      {positions.length === 0 ? (
-        <div className="positions-empty">No open positions</div>
+      {!address ? (
+        <div className="pos-empty">Connect wallet to view positions</div>
+      ) : positions.length === 0 ? (
+        <div className="pos-empty">No open positions</div>
       ) : (
-        <div className="positions-list">
+        <div className="pos-list">
           {positions.map((p) => (
-            <div key={p.id} className="position-row">
-              <div className="pos-left">
-                <span className="pos-symbol">{p.symbol}</span>
-                <span className={`pos-dir ${p.higher ? "higher" : "lower"}`}>
-                  {p.higher ? "▲ HIGHER" : "▼ LOWER"}
-                </span>
-              </div>
-              <div className="pos-mid">
-                <span className="pos-size">${(p.size / 1e6).toFixed(2)}</span>
-                {p.stopLossPrice > 0   && <span className="pos-sl">SL ${(p.stopLossPrice  / 1e18).toFixed(0)}</span>}
-                {p.takeProfitPrice > 0 && <span className="pos-tp">TP ${(p.takeProfitPrice / 1e18).toFixed(0)}</span>}
-              </div>
-              <div className="pos-right">
-                <span className={`pos-status ${p.closed ? (p.won ? "won" : "lost") : "open"}`}>
-                  {p.closed ? (p.won ? "WON" : "LOST") : "OPEN"}
-                </span>
-              </div>
+            <div key={p.id} className="pos-row">
+              <span className="pos-sym">{p.symbol}</span>
+              <span className={`pos-dir ${p.higher ? "h" : "l"}`}>{p.higher ? "▲ H" : "▼ L"}</span>
+              <span className="pos-size">${(p.size / 1e6).toFixed(0)}</span>
+              {p.stopLossPrice > 0   && <span className="pos-sl">SL</span>}
+              {p.takeProfitPrice > 0 && <span className="pos-tp">TP</span>}
+              <span className={`pos-status ${p.closed ? (p.won ? "won" : "lost") : "open"}`}>
+                {p.closed ? (p.won ? "WON" : "LOST") : "LIVE"}
+              </span>
             </div>
           ))}
         </div>

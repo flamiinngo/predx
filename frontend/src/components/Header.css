@@ -1,58 +1,75 @@
 .header {
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 60px;
+  padding: 0 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
+  gap: 24px;
 }
-.header-left  { display: flex; align-items: center; gap: 32px; }
-.header-right { display: flex; align-items: center; gap: 10px; }
+.header-brand { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
 .logo { display: flex; align-items: center; gap: 8px; }
-.logo-icon {
-  width: 28px; height: 28px;
-  background: var(--accent);
-  border-radius: 6px;
+.logo-mark {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px;
+  font-weight: 800; font-size: 14px; color: #fff;
 }
-.logo-text  { font-weight: 700; font-size: 16px; }
-.logo-badge {
-  font-size: 9px; font-weight: 600;
-  background: var(--accent); color: #fff;
-  padding: 2px 5px; border-radius: 4px;
+.logo-name { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--text); }
+.logo-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  background: var(--accent3); color: var(--accent2);
+  padding: 2px 6px; border-radius: 4px; border: 1px solid var(--accent);
 }
-.nav { display: flex; gap: 4px; }
-.nav-item {
-  padding: 5px 12px; border-radius: 6px;
-  color: var(--muted); cursor: pointer;
-  transition: all 0.15s; font-size: 13px;
+
+.ticker-bar {
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 16px;
+  border-left: 1px solid var(--border);
 }
-.nav-item:hover, .nav-item.active { color: var(--text); background: var(--surface2); }
+.ticker-item { display: flex; align-items: center; gap: 6px; }
+.ticker-sym   { font-size: 11px; font-weight: 600; color: var(--text2); }
+.ticker-price { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ticker-chg   { font-size: 10px; font-weight: 600; }
+.ticker-chg.up { color: var(--higher); }
+.ticker-chg.dn { color: var(--lower); }
+
+.header-nav { display: flex; align-items: center; gap: 2px; flex: 1; justify-content: center; }
+.nav-link {
+  padding: 6px 14px; border-radius: 6px;
+  color: var(--text2); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; text-decoration: none;
+}
+.nav-link:hover { color: var(--text); background: var(--surface2); }
+.nav-link.active { color: var(--text); background: var(--surface2); }
+
+.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .btn-deposit {
-  padding: 6px 14px;
-  background: transparent;
+  display: flex; align-items: center; gap: 4px;
+  padding: 7px 14px;
+  background: var(--accent3);
   border: 1px solid var(--accent);
   color: var(--accent2);
-  border-radius: 8px; font-size: 13px; font-weight: 500;
+  border-radius: 8px; font-size: 12px; font-weight: 600;
   transition: all 0.15s;
 }
 .btn-deposit:hover { background: var(--accent); color: #fff; }
 .btn-wallet {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 14px;
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 14px;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border2);
   color: var(--text); border-radius: 8px;
-  font-size: 13px; font-weight: 500; transition: all 0.15s;
+  font-size: 12px; font-weight: 500; transition: all 0.15s;
 }
 .btn-wallet:hover { border-color: var(--accent); }
 .btn-wallet.connected { border-color: var(--higher); }
-.wallet-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%; background: var(--higher);
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--higher);
+  box-shadow: 0 0 6px var(--higher);
 }

@@ -4,22 +4,24 @@ import { useAutosign } from "../hooks/useAutosign";
 import { useTrade } from "../hooks/useTrade";
 import "./TradePanel.css";
 
+const BASE_PRICES = { BTC: 83241, ETH: 1842, INIT: 1.47 };
+
 export default function TradePanel({ market }) {
   const { isConnected, connect } = useInterwovenKit();
   const { autosignEnabled, enableAutosign } = useAutosign();
   const { openPosition, isLoading }         = useTrade();
 
-  const [direction, setDirection] = useState("higher");
-  const [size, setSize]           = useState("");
-  const [slPrice, setSlPrice]     = useState("");
-  const [tpPrice, setTpPrice]     = useState("");
-  const [showSLTP, setShowSLTP]   = useState(false);
+  const [dir,      setDir]      = useState("higher");
+  const [size,     setSize]     = useState("");
+  const [slPrice,  setSlPrice]  = useState("");
+  const [tpPrice,  setTpPrice]  = useState("");
+  const [showSLTP, setShowSLTP] = useState(false);
 
   const handleTrade = async () => {
     if (!market || !size) return;
     await openPosition({
       marketId: market.id || 1,
-      higher:   direction === "higher",
+      higher:   dir === "higher",
       size:     parseFloat(size),
       slPrice:  slPrice ? parseFloat(slPrice) : 0,
       tpPrice:  tpPrice ? parseFloat(tpPrice) : 0,
@@ -27,84 +29,151 @@ export default function TradePanel({ market }) {
   };
 
   if (!market) return (
-    <div className="trade-panel empty">
-      <div className="empty-state">
-        <div className="empty-icon">↗</div>
-        <p>Select a market to trade</p>
+    <div className="tp empty">
+      <div className="empty-hint">
+        <div className="empty-arrow">↖</div>
+        <p>Select a market</p>
+        <p className="empty-sub">Choose BTC, ETH or INIT to start trading</p>
       </div>
     </div>
   );
 
-  const estPayout = size ? (parseFloat(size) * 1.96).toFixed(2) : "—";
+  const price     = BASE_PRICES[market.symbol] || 0;
+  const fee       = size ? (parseFloat(size) * 0.02).toFixed(2) : "—";
+  const net       = size ? (parseFloat(size) * 0.98).toFixed(2) : "—";
+  const payout    = size ? (parseFloat(size) * 1.96).toFixed(2) : "—";
 
   return (
-    <div className="trade-panel">
-      <div className="tp-header">
-        <span className="tp-title">{market.symbol}/USDC</span>
-        <span className="tp-tf">{market.timeframe}</span>
+    <div className="tp">
+      {/* Header */}
+      <div className="tp-head">
+        <div className="tp-sym">
+          <span className="tp-name">{market.symbol}/USDC</span>
+          <span className="tp-badge">{market.timeframe}</span>
+        </div>
+        <div className="tp-price">${price.toLocaleString()}</div>
       </div>
 
+      {/* Auto-sign notice */}
       {isConnected && !autosignEnabled && (
-        <div className="autosign-banner">
-          <span>Enable auto-signing for instant trades</span>
-          <button onClick={enableAutosign}>Enable</button>
+        <div className="autosign-row">
+          <div className="autosign-left">
+            <div className="autosign-icon">⚡</div>
+            <div>
+              <div className="autosign-title">Enable Auto-signing</div>
+              <div className="autosign-sub">Trade instantly without popups</div>
+            </div>
+          </div>
+          <button className="autosign-btn" onClick={enableAutosign}>Enable</button>
         </div>
       )}
 
-      <div className="direction-tabs">
-        <button className={`dir-btn higher ${direction === "higher" ? "active" : ""}`} onClick={() => setDirection("higher")}>▲ HIGHER</button>
-        <button className={`dir-btn lower  ${direction === "lower"  ? "active" : ""}`} onClick={() => setDirection("lower")}>▼ LOWER</button>
+      {/* Direction */}
+      <div className="dir-tabs">
+        <button className={`dir-btn h ${dir === "higher" ? "on" : ""}`} onClick={() => setDir("higher")}>
+          <span className="dir-arrow">▲</span>
+          <span>HIGHER</span>
+        </button>
+        <button className={`dir-btn l ${dir === "lower" ? "on" : ""}`} onClick={() => setDir("lower")}>
+          <span className="dir-arrow">▼</span>
+          <span>LOWER</span>
+        </button>
       </div>
 
-      <div className="tp-field">
-        <label>Amount (USDC)</label>
-        <div className="input-wrap">
-          <input type="number" placeholder="0.00" value={size} onChange={(e) => setSize(e.target.value)} min="1" max="1000" />
-          <span className="input-suffix">USDC</span>
+      {/* Size */}
+      <div className="field">
+        <div className="field-label">
+          <span>Amount</span>
+          <span className="field-bal">Balance: —</span>
         </div>
-        <div className="quick-amounts">
-          {[10, 25, 50, 100].map((n) => (
-            <button key={n} onClick={() => setSize(String(n))}>${n}</button>
+        <div className="field-input">
+          <span className="field-pre">$</span>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            min="1" max="1000"
+          />
+          <span className="field-suf">USDC</span>
+        </div>
+        <div className="presets">
+          {[10, 25, 50, 100, 250].map((n) => (
+            <button key={n} className={`preset ${size == n ? "on" : ""}`} onClick={() => setSize(String(n))}>
+              ${n}
+            </button>
           ))}
         </div>
       </div>
 
-      <button className="sltp-toggle" onClick={() => setShowSLTP(!showSLTP)}>
-        {showSLTP ? "▲" : "▼"} Stop Loss / Take Profit
-      </button>
-
-      {showSLTP && (
-        <div className="sltp-fields">
-          <div className="tp-field">
-            <label>Stop Loss Price</label>
-            <div className="input-wrap">
-              <input type="number" placeholder={direction === "higher" ? `below ${market.price?.toFixed(2)}` : `above ${market.price?.toFixed(2)}`} value={slPrice} onChange={(e) => setSlPrice(e.target.value)} />
-              <span className="input-suffix">USD</span>
+      {/* SL/TP */}
+      <div className="sltp-wrap">
+        <button className="sltp-head" onClick={() => setShowSLTP(!showSLTP)}>
+          <span>Stop Loss / Take Profit</span>
+          <span className={`sltp-arrow ${showSLTP ? "open" : ""}`}>▼</span>
+        </button>
+        {showSLTP && (
+          <div className="sltp-body">
+            <div className="sltp-row">
+              <div className="field">
+                <div className="field-label"><span>Stop Loss</span><span className="sl-hint">{dir === "higher" ? `below $${price.toLocaleString()}` : `above $${price.toLocaleString()}`}</span></div>
+                <div className="field-input">
+                  <span className="field-pre">$</span>
+                  <input type="number" placeholder="0.00" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label"><span>Take Profit</span><span className="tp-hint">{dir === "higher" ? `above $${price.toLocaleString()}` : `below $${price.toLocaleString()}`}</span></div>
+                <div className="field-input">
+                  <span className="field-pre">$</span>
+                  <input type="number" placeholder="0.00" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} />
+                </div>
+              </div>
             </div>
+            {(slPrice || tpPrice) && (
+              <div className="sltp-visual">
+                {tpPrice && <div className="sltp-line tp-line" style={{ top: "10%" }}><span>TP ${tpPrice}</span></div>}
+                <div className="sltp-current"><span>Entry ${price.toLocaleString()}</span></div>
+                {slPrice && <div className="sltp-line sl-line" style={{ top: "80%" }}><span>SL ${slPrice}</span></div>}
+              </div>
+            )}
           </div>
-          <div className="tp-field">
-            <label>Take Profit Price</label>
-            <div className="input-wrap">
-              <input type="number" placeholder={direction === "higher" ? `above ${market.price?.toFixed(2)}` : `below ${market.price?.toFixed(2)}`} value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} />
-              <span className="input-suffix">USD</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="tp-summary">
-        <div className="summary-row"><span>Est. payout</span><span className="summary-val">${estPayout}</span></div>
-        <div className="summary-row"><span>Fee</span><span className="summary-val">2%</span></div>
-        <div className="summary-row"><span>Execution</span><span className="summary-val accent">{autosignEnabled ? "Instant (auto-sign)" : "1-click"}</span></div>
+        )}
       </div>
 
+      {/* Summary */}
+      <div className="summary">
+        <div className="sum-row"><span>Entry size</span><span>${net}</span></div>
+        <div className="sum-row"><span>Protocol fee (2%)</span><span>-${fee}</span></div>
+        <div className="sum-row highlight"><span>Max payout</span><span className={dir === "higher" ? "green" : "red"}>${payout}</span></div>
+      </div>
+
+      {/* CTA */}
       {!isConnected ? (
-        <button className="btn-connect-trade" onClick={connect}>Connect Wallet to Trade</button>
+        <button className="cta-btn connect" onClick={connect}>
+          Connect Wallet to Trade
+        </button>
       ) : (
-        <button className={`btn-trade ${direction}`} onClick={handleTrade} disabled={!size || isLoading}>
-          {isLoading ? "Submitting..." : direction === "higher" ? "▲ BUY HIGHER" : "▼ BUY LOWER"}
+        <button
+          className={`cta-btn trade ${dir}`}
+          onClick={handleTrade}
+          disabled={!size || isLoading}
+        >
+          {isLoading ? (
+            <span className="loading">Submitting...</span>
+          ) : (
+            <>
+              <span className="cta-arrow">{dir === "higher" ? "▲" : "▼"}</span>
+              <span>BUY {dir.toUpperCase()} {market.symbol}</span>
+              {autosignEnabled && <span className="cta-instant">⚡ Instant</span>}
+            </>
+          )}
         </button>
       )}
+
+      <div className="tp-footer">
+        Powered by Initia · Auto-signing · Interwoven Bridge
+      </div>
     </div>
   );
 }

@@ -1,28 +1,52 @@
 import { useState } from "react";
 import Header from "./components/Header";
-import MarketGrid from "./components/MarketGrid";
+import MarketRow from "./components/MarketRow";
+import ChartPanel from "./components/ChartPanel";
 import TradePanel from "./components/TradePanel";
+import OrderBook from "./components/OrderBook";
+import RecentTrades from "./components/RecentTrades";
+import StatsBar from "./components/StatsBar";
 import Positions from "./components/Positions";
 import DepositModal from "./components/DepositModal";
 import "./App.css";
 
 export default function App() {
-  const [selectedMarket, setSelectedMarket] = useState(null);
-  const [showDeposit, setShowDeposit]       = useState(false);
+  const [market, setMarket]       = useState(null);
+  const [showDeposit, setDeposit] = useState(false);
 
   return (
     <div className="app">
-      <Header onDeposit={() => setShowDeposit(true)} />
-      <main className="main">
-        <div className="left-col">
-          <MarketGrid onSelect={setSelectedMarket} selected={selectedMarket} />
-          <Positions />
+      <Header onDeposit={() => setDeposit(true)} />
+      <StatsBar />
+      <div className="layout">
+        {/* LEFT: markets + chart + bottom panels */}
+        <div className="col-main">
+          <MarketRow onSelect={setMarket} selected={market} />
+          {market ? (
+            <>
+              <ChartPanel market={market} />
+              <div className="bottom-row">
+                <OrderBook market={market} />
+                <RecentTrades market={market} />
+                <Positions />
+              </div>
+            </>
+          ) : (
+            <div className="no-market">
+              <div className="no-market-inner">
+                <div className="nm-icon">↖</div>
+                <h2>Select a market to start trading</h2>
+                <p>BTC, ETH and INIT prediction markets — 1min, 5min, 15min windows</p>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="right-col">
-          <TradePanel market={selectedMarket} />
+        {/* RIGHT: trade panel */}
+        <div className="col-side">
+          <TradePanel market={market} />
         </div>
-      </main>
-      {showDeposit && <DepositModal onClose={() => setShowDeposit(false)} />}
+      </div>
+      {showDeposit && <DepositModal onClose={() => setDeposit(false)} />}
     </div>
   );
 }

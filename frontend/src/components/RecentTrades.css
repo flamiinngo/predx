@@ -1,0 +1,33 @@
+.recent-trades {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.rt-title {
+  padding: 10px 12px 8px;
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.rt-head {
+  display: grid; grid-template-columns: 1fr 40px 44px 44px;
+  padding: 4px 12px;
+  font-size: 10px; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+}
+.rt-list { overflow-y: auto; max-height: 260px; }
+.rt-row {
+  display: grid; grid-template-columns: 1fr 40px 44px 44px;
+  padding: 4px 12px;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background 0.1s;
+}
+.rt-row:hover { background: var(--surface2); }
+.rt-trader { color: var(--accent2); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-dir    { font-size: 10px; font-weight: 700; }
+.rt-dir.higher { color: var(--higher); }
+.rt-dir.lower  { color: var(--lower); }
+.rt-size   { color: var(--text); font-variant-numeric: tabular-nums; }
+.rt-ago    { color: var(--text3); font-size: 10px; }

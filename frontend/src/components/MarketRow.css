@@ -1,0 +1,63 @@
+.market-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.mr-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.mr-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--higher);
+  box-shadow: 0 0 8px var(--higher); animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+.tf-group { display: flex; gap: 3px; }
+.tf-btn {
+  padding: 4px 10px; border-radius: 5px;
+  background: transparent; border: 1px solid transparent;
+  color: var(--text2); font-size: 11px; font-weight: 600;
+  transition: all 0.15s;
+}
+.tf-btn.on  { background: var(--accent3); border-color: var(--accent); color: var(--accent2); }
+.tf-btn:hover:not(.on) { color: var(--text); background: var(--surface3); }
+
+.mr-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+
+.mchip {
+  background: var(--surface);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mchip:hover  { background: var(--surface2); }
+.mchip.sel    { background: var(--surface3); border-left: 2px solid var(--accent); }
+
+.mchip-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.mchip-sym { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.mchip-dot { width: 8px; height: 8px; border-radius: 50%; }
+.mchip-timer {
+  font-size: 10px; font-weight: 700; color: var(--gold);
+  background: var(--gold2); padding: 2px 6px; border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.mchip-price { font-size: 20px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px; }
+.mchip-bar { height: 4px; background: var(--lower2); border-radius: 2px; margin-bottom: 5px; overflow: hidden; }
+.mchip-fill { height: 100%; background: var(--higher); border-radius: 2px; transition: width 0.5s; }
+.mchip-odds { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-bottom: 8px; }
+.odds-h { color: var(--higher); }
+.odds-l { color: var(--lower);  }
+.mchip-vol { font-size: 10px; color: var(--text3); }

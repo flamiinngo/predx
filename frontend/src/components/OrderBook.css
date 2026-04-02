@@ -1,0 +1,44 @@
+.order-book {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.ob-title {
+  padding: 10px 12px 8px;
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.ob-head {
+  display: flex; justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 10px; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+}
+.ob-row {
+  position: relative;
+  display: flex; justify-content: space-between;
+  padding: 2px 12px;
+  font-size: 11px;
+  overflow: hidden;
+}
+.ob-fill {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  opacity: 0.08;
+}
+.ask-fill { background: var(--lower); }
+.bid-fill { background: var(--higher); }
+.ask-price { color: var(--lower); font-weight: 500; }
+.bid-price { color: var(--higher); font-weight: 500; }
+.ob-size   { color: var(--text2); }
+.ob-spread {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 12px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.ob-mid        { font-size: 12px; font-weight: 700; color: var(--text); }
+.ob-spread-val { font-size: 10px; color: var(--text3); }

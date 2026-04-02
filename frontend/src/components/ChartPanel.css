@@ -1,0 +1,30 @@
+.chart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.cp-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.cp-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cp-sym   { font-size: 14px; font-weight: 700; }
+.cp-tf    {
+  font-size: 10px; font-weight: 700; color: var(--accent2);
+  background: var(--accent3); padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--accent);
+}
+.cp-sep   { color: var(--border2); }
+.cp-label { font-size: 11px; color: var(--text2); }
+.cp-val   { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cp-status { font-size: 11px; font-weight: 600; color: var(--higher); white-space: nowrap; }
+
+.cp-chart {
+  width: 100%;
+  min-height: 300px;
+  display: block;
+  position: relative;
+}
