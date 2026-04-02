@@ -1,9 +1,4 @@
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
+.app { min-height: 100vh; display: flex; flex-direction: column; }
 .main {
   display: grid;
   grid-template-columns: 1fr 360px;
@@ -13,10 +8,8 @@
   margin: 0 auto;
   width: 100%;
 }
-
 .left-col  { display: flex; flex-direction: column; gap: 16px; }
 .right-col { position: sticky; top: 76px; height: fit-content; }
-
 @media (max-width: 900px) {
   .main { grid-template-columns: 1fr; }
   .right-col { position: static; }
