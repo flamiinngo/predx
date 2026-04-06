@@ -1,0 +1,13 @@
+{
+  "name": "predx-keeper",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node keeper.js",
+    "dev": "node --watch keeper.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.11.1"
+  }
+}

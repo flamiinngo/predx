@@ -1,0 +1,12 @@
+{
+  "project_name": "PredX",
+  "repo_url": "https://github.com/flamiinngo/predx",
+  "commit_sha": "FILL_AFTER_FINAL_COMMIT",
+  "rollup_chain_id": "predx-1",
+  "deployed_address": "0xEc745D99EE8B465F14fe9a07F39913a54A382DBE",
+  "vm": "evm",
+  "native_feature": "auto-signing",
+  "core_logic_path": "contracts/src/SettlementEngine.sol",
+  "native_feature_frontend_path": "frontend/src/hooks/useAutosign.js",
+  "demo_video_url": "FILL_AFTER_RECORDING"
+}
