@@ -1,81 +1,195 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
+import { useCountdown } from "../hooks/useCountdown";
 import "./ChartPanel.css";
 
 const BASE = { BTC: 83241, ETH: 1842, INIT: 1.47 };
+const TF_SECONDS = { "1m": 60, "5m": 300, "15m": 900 };
+const TF_CANDLES = { "1m": 80,  "5m": 60,  "15m": 40 };
+const TF_LABELS  = { "1m": "1 minute", "5m": "5 minutes", "15m": "15 minutes" };
 
-function genCandles(base, count = 60) {
+function genCandles(base, tf, count) {
   const out = [];
-  let p = base;
-  const now = Math.floor(Date.now() / 1000);
+  let p          = base;
+  const now      = Math.floor(Date.now() / 1000);
+  const interval = TF_SECONDS[tf] || 60;
+  const decimals = base < 10 ? 4 : 2;
+  // larger timeframes = larger per-candle moves
+  const volatility = tf === "15m" ? 0.012 : tf === "5m" ? 0.009 : 0.006;
+
   for (let i = count; i >= 0; i--) {
     const o = p;
-    const c = Math.max(base * 0.9, o + (Math.random() - 0.49) * base * 0.008);
+    const c = Math.max(base * 0.85, o + (Math.random() - 0.49) * base * volatility);
     const h = Math.max(o, c) + Math.random() * base * 0.002;
     const l = Math.min(o, c) - Math.random() * base * 0.002;
-    out.push({ time: now - i * 60, open: +o.toFixed(2), high: +h.toFixed(2), low: +Math.max(0.01,l).toFixed(2), close: +c.toFixed(2) });
+    out.push({
+      time:  now - i * interval,
+      open:  parseFloat(o.toFixed(decimals)),
+      high:  parseFloat(h.toFixed(decimals)),
+      low:   parseFloat(Math.max(0.0001, l).toFixed(decimals)),
+      close: parseFloat(c.toFixed(decimals)),
+    });
     p = c;
   }
   return out;
 }
 
 export default function ChartPanel({ market }) {
-  const ref = useRef(null);
+  const ref        = useRef(null);
+  const remaining  = useCountdown(market.endTime);
+  const [livePrice, setLivePrice] = useState(BASE[market.symbol]);
 
   useEffect(() => {
     if (!ref.current) return;
-    const base = BASE[market.symbol] || 100;
-    const candles = genCandles(base);
+    const base     = BASE[market.symbol] || 100;
+    const tf       = market.timeframe || "1m";
+    const decimals = base < 10 ? 4 : 2;
+    const count    = TF_CANDLES[tf] || 80;
+    const candles  = genCandles(base, tf, count);
+
+    setLivePrice(candles[candles.length - 1].close);
 
     const chart = createChart(ref.current, {
-      width: ref.current.clientWidth,
-      height: 300,
-      layout: { background: { color: "#0d1117" }, textColor: "#8b949e" },
-      grid: { vertLines: { color: "#161b22" }, horzLines: { color: "#161b22" } },
-      crosshair: { vertLine: { labelBackgroundColor: "#6366f1" }, horzLine: { labelBackgroundColor: "#6366f1" } },
-      rightPriceScale: { borderColor: "#30363d" },
-      timeScale: { borderColor: "#30363d", timeVisible: true },
+      width:  ref.current.clientWidth,
+      height: 340,
+      layout: {
+        background: { color: "#0d1117" },
+        textColor:  "#8b949e",
+        fontSize:   11,
+      },
+      grid: {
+        vertLines: { color: "#161b22" },
+        horzLines: { color: "#161b22" },
+      },
+      crosshair: {
+        vertLine: { color: "#6366f1", labelBackgroundColor: "#6366f1" },
+        horzLine: { color: "#6366f1", labelBackgroundColor: "#6366f1" },
+      },
+      rightPriceScale: {
+        borderColor:  "#21262d",
+        scaleMargins: { top: 0.06, bottom: 0.1 },
+      },
+      timeScale: {
+        borderColor:    "#21262d",
+        timeVisible:    true,
+        secondsVisible: tf === "1m",
+        rightOffset:    12,
+        tickMarkFormatter: (time) => {
+          const d = new Date(time * 1000);
+          return `${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
+        },
+      },
+      localization: {
+        priceFormatter: (p) => base < 10 ? `$${p.toFixed(4)}` : `$${p.toLocaleString()}`,
+      },
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: "#3fb950", downColor: "#f85149",
-      borderUpColor: "#3fb950", borderDownColor: "#f85149",
-      wickUpColor: "#3fb950", wickDownColor: "#f85149",
+      upColor:         "#3fb950",
+      downColor:       "#f85149",
+      borderUpColor:   "#3fb950",
+      borderDownColor: "#f85149",
+      wickUpColor:     "#3fb950",
+      wickDownColor:   "#f85149",
+      priceFormat: {
+        type:    "price",
+        precision: decimals,
+        minMove:   base < 10 ? 0.0001 : 0.01,
+      },
     });
 
     series.setData(candles);
     chart.timeScale().fitContent();
 
+    // Strike line — entry price for this market
+    const strike = candles[0].close;
     series.createPriceLine({
-      price: candles[0].close, color: "#8b5cf6",
-      lineWidth: 1, lineStyle: 2,
-      axisLabelVisible: true, title: "strike",
+      price:            strike,
+      color:            "#8b5cf6",
+      lineWidth:        1,
+      lineStyle:        2,
+      axisLabelVisible: true,
+      title:            "strike",
     });
 
+    // Volume bars
+    const volSeries = chart.addHistogramSeries({
+      priceFormat:  { type: "volume" },
+      priceScaleId: "vol",
+      scaleMargins: { top: 0.85, bottom: 0 },
+    });
+    volSeries.setData(candles.map(c => ({
+      time:  c.time,
+      value: Math.random() * base * 0.3 + base * 0.05,
+      color: c.close >= c.open ? "#3fb95025" : "#f8514925",
+    })));
+
+    // Live tick — speed matches timeframe
+    const tickMs = tf === "1m" ? 1000 : tf === "5m" ? 2000 : 3000;
     const ticker = setInterval(() => {
       const last = candles[candles.length - 1];
-      const nc = +Math.max(base * 0.9, last.close + (Math.random() - 0.49) * base * 0.002).toFixed(2);
-      const upd = { time: last.time, open: last.open, high: +Math.max(last.high, nc).toFixed(2), low: +Math.min(last.low, nc).toFixed(2), close: nc };
+      const nc   = parseFloat(
+        Math.max(base * 0.85, last.close + (Math.random() - 0.49) * base * 0.0015)
+          .toFixed(decimals)
+      );
+      const upd = {
+        time:  last.time,
+        open:  last.open,
+        high:  parseFloat(Math.max(last.high, nc).toFixed(decimals)),
+        low:   parseFloat(Math.min(last.low,  nc).toFixed(decimals)),
+        close: nc,
+      };
       candles[candles.length - 1] = upd;
       series.update(upd);
-    }, 1000);
+      setLivePrice(nc);
+    }, tickMs);
 
-    const ro = new ResizeObserver(() => { chart.applyOptions({ width: ref.current?.clientWidth }); });
+    const ro = new ResizeObserver(() => {
+      if (ref.current) chart.applyOptions({ width: ref.current.clientWidth });
+    });
     ro.observe(ref.current);
 
-    return () => { clearInterval(ticker); ro.disconnect(); chart.remove(); };
-  }, [market.symbol]);
+    return () => {
+      clearInterval(ticker);
+      ro.disconnect();
+      chart.remove();
+    };
+  }, [market.symbol, market.timeframe]);
 
-  const p = BASE[market.symbol];
+  const base     = BASE[market.symbol] || 0;
+  const decimals = base < 10 ? 4 : 2;
+  const fmtP     = (p) => base < 10 ? `$${Number(p).toFixed(4)}` : `$${Number(p).toLocaleString()}`;
+  const change   = base ? ((livePrice - base) / base * 100).toFixed(3) : "0.000";
+  const isUp     = livePrice >= base;
+
   return (
     <div className="chart-panel">
       <div className="cp-header">
         <div className="cp-left">
           <span className="cp-sym">{market.symbol}/USDC</span>
           <span className="cp-tf">{market.timeframe}</span>
-          <span className="cp-strike">Strike ${p?.toLocaleString()}</span>
+          <div className="cp-price-block">
+            <span className="cp-live-price">{fmtP(livePrice)}</span>
+            <span className={`cp-change ${isUp ? "up" : "dn"}`}>
+              {isUp ? "+" : ""}{change}%
+            </span>
+          </div>
+          <div className="cp-meta">
+            <span className="cp-meta-label">Strike</span>
+            <span className="cp-meta-val">{fmtP(base)}</span>
+          </div>
+          <div className="cp-meta">
+            <span className="cp-meta-label">Candle</span>
+            <span className="cp-meta-val">{TF_LABELS[market.timeframe]}</span>
+          </div>
         </div>
-        <span className="cp-open">● OPEN</span>
+        <div className="cp-right">
+          <span className="cp-open">● OPEN</span>
+          <div className="cp-timer">
+            <span className="cp-timer-label">Expires in</span>
+            <span className="cp-timer-val">{remaining}</span>
+          </div>
+        </div>
       </div>
       <div ref={ref} />
     </div>

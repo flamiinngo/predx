@@ -1,0 +1,21 @@
+.minfo-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.minfo-header {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.minfo-title { font-size: 11px; font-weight: 600; color: var(--text2); }
+.minfo-list  { padding: 4px 0; }
+.minfo-row {
+  display: flex; justify-content: space-between;
+  padding: 6px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 11px;
+}
+.minfo-label { color: var(--text3); }
+.minfo-val   { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }

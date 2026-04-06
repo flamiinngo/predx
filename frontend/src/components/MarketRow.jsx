@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCountdown } from "../hooks/useCountdown";
 import "./MarketRow.css";
 
-const SYMBOLS = ["BTC", "ETH", "INIT"];
-const TFS     = ["1m", "5m", "15m"];
-const PRICES  = { BTC: 83241.50, ETH: 1842.30, INIT: 1.47 };
-const COLORS  = { BTC: "#f7931a", ETH: "#627eea", INIT: "#6366f1" };
+const SYMBOLS   = ["BTC", "ETH", "INIT"];
+const TFS       = ["1m", "5m", "15m"];
+const PRICES    = { BTC: 83241.50, ETH: 1842.30, INIT: 1.47 };
+const COLORS    = { BTC: "#f7931a", ETH: "#627eea", INIT: "#6366f1" };
+const DURATIONS = { "1m": 60, "5m": 300, "15m": 900 };
 
 function MarketChip({ market, isSelected, onClick }) {
   const remaining = useCountdown(market.endTime);
-  const lower = 100 - market.higher;
+  const lower     = 100 - market.higher;
+  const p         = PRICES[market.symbol];
+  const fmt       = market.symbol === "INIT"
+    ? `$${p.toFixed(2)}`
+    : `$${(p / 1000).toFixed(1)}k`;
+
   return (
     <div className={`mchip ${isSelected ? "sel" : ""}`} onClick={onClick}>
       <div className="mchip-top">
@@ -19,7 +25,7 @@ function MarketChip({ market, isSelected, onClick }) {
         </div>
         <span className="mchip-timer">{remaining}</span>
       </div>
-      <div className="mchip-price">{market.symbol === "INIT" ? `$${PRICES[market.symbol].toFixed(2)}` : `$${(PRICES[market.symbol]/1000).toFixed(1)}k`}</div>
+      <div className="mchip-price">{fmt}</div>
       <div className="mchip-bar">
         <div className="mchip-fill" style={{ width: `${market.higher}%` }} />
       </div>
@@ -27,23 +33,44 @@ function MarketChip({ market, isSelected, onClick }) {
         <span className="odds-h">▲ {market.higher}%</span>
         <span className="odds-l">{lower}% ▼</span>
       </div>
-      <div className="mchip-vol">Vol ${(market.vol/1000).toFixed(1)}k</div>
+      <div className="mchip-vol">Vol ${(market.vol / 1000).toFixed(1)}k</div>
     </div>
   );
 }
 
 export default function MarketRow({ onSelect, selected }) {
-  const [activeTF, setActiveTF] = useState("1m");
-  const duration = { "1m": 60, "5m": 300, "15m": 900 };
+  const [activeTF, setActiveTF] = useState(selected?.timeframe || "1m");
 
-  const markets = SYMBOLS.map((sym) => ({
-    symbol:  sym,
-    timeframe: activeTF,
-    higher:  50 + Math.floor(Math.random() * 30),
-    vol:     Math.floor(Math.random() * 80000) + 8000,
-    endTime: Date.now() + duration[activeTF] * 1000,
-    id:      `${sym}-${activeTF}`,
+  // Rebuild markets when TF changes
+  const makeMarkets = (tf) => SYMBOLS.map((sym) => ({
+    symbol:    sym,
+    timeframe: tf,
+    higher:    50 + Math.floor(Math.random() * 30),
+    vol:       Math.floor(Math.random() * 80000) + 8000,
+    endTime:   Date.now() + DURATIONS[tf] * 1000,
+    id:        `${sym}-${tf}`,
   }));
+
+  const [markets, setMarkets] = useState(() => makeMarkets(activeTF));
+
+  const handleTF = (tf) => {
+    setActiveTF(tf);
+    const newMarkets = makeMarkets(tf);
+    setMarkets(newMarkets);
+    // auto-select same symbol in new timeframe
+    if (selected) {
+      const match = newMarkets.find(m => m.symbol === selected.symbol);
+      if (match) onSelect(match);
+    }
+  };
+
+  // Refresh market countdowns every minute
+  useEffect(() => {
+    const id = setInterval(() => {
+      setMarkets(makeMarkets(activeTF));
+    }, DURATIONS[activeTF] * 1000);
+    return () => clearInterval(id);
+  }, [activeTF]);
 
   return (
     <div className="market-row">
@@ -54,7 +81,13 @@ export default function MarketRow({ onSelect, selected }) {
         </div>
         <div className="tf-group">
           {TFS.map((tf) => (
-            <button key={tf} className={`tf-btn ${activeTF === tf ? "on" : ""}`} onClick={() => setActiveTF(tf)}>{tf}</button>
+            <button
+              key={tf}
+              className={`tf-btn ${activeTF === tf ? "on" : ""}`}
+              onClick={() => handleTF(tf)}
+            >
+              {tf}
+            </button>
           ))}
         </div>
       </div>
