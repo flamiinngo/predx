@@ -1,7 +1,7 @@
 {
   "project_name": "PredX",
   "repo_url": "https://github.com/flamiinngo/predx",
-  "commit_sha": "FILL_AFTER_FINAL_COMMIT",
+  "commit_sha": "9420f2e9edecfb7087baf1a22c950814f781b4a8",
   "rollup_chain_id": "predx-1",
   "deployed_address": "0xEc745D99EE8B465F14fe9a07F39913a54A382DBE",
   "vm": "evm",
