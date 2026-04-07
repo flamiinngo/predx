@@ -1,20 +1,29 @@
 import { useState } from "react";
-import { useInterwovenKit } from "@initia/interwovenkit-react";
-import { useAutosign } from "../hooks/useAutosign";
-import { useTrade } from "../hooks/useTrade";
+import { useWallet } from "../hooks/useWallet";
+import { ethers } from "ethers";
 import "./TradePanel.css";
 
-const BASE = { BTC: 83241, ETH: 1842, INIT: 1.47 };
+const PM_ABI = [
+  "function openPosition(uint256 marketId, bool higher, uint256 size, uint256 slPrice, uint256 tpPrice) external returns (uint256)"
+];
+const USDC_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)"
+];
+const PM_ADDRESS   = "0x53970243c108E7d8eF24227924F6aEF1db0E98B1";
+const USDC_ADDRESS = "0x28Bc46dE1761EaB4a1BEF1974afE4a6cbF196D34";
 
-export default function TradePanel({ market }) {
-  const { isConnected, connect } = useInterwovenKit();
-  const { autosignEnabled, enableAutosign } = useAutosign();
-  const { openPosition, isLoading } = useTrade();
+const MARKET_IDS = { "BTC-1m":0, "BTC-5m":1, "BTC-15m":2, "ETH-1m":3, "ETH-5m":4, "ETH-15m":5, "INIT-1m":6, "INIT-5m":7, "INIT-15m":8 };
 
-  const [dir,  setDir]  = useState("higher");
-  const [size, setSize] = useState("");
-  const [sl,   setSl]   = useState("");
-  const [tp,   setTp]   = useState("");
+export default function TradePanel({ market, livePrice }) {
+  const { isConnected, connect, address } = useWallet();
+  const [dir,     setDir]     = useState("higher");
+  const [size,    setSize]    = useState("");
+  const [sl,      setSl]      = useState("");
+  const [tp,      setTp]      = useState("");
+  const [loading, setLoading] = useState(false);
+  const [txHash,  setTxHash]  = useState(null);
+  const [error,   setError]   = useState(null);
 
   if (!market) return (
     <div className="tp empty">
@@ -26,27 +35,53 @@ export default function TradePanel({ market }) {
     </div>
   );
 
-  const base   = BASE[market.symbol] || 0;
-  const dec    = base < 10 ? 4 : 0;
-  const fmt    = (p) => base < 10 ? `$${Number(p).toFixed(4)}` : `$${Number(p).toLocaleString()}`;
-  const fee    = size ? (parseFloat(size) * 0.02).toFixed(2) : "—";
-  const net    = size ? (parseFloat(size) * 0.98).toFixed(2) : "—";
-  const payout = size ? (parseFloat(size) * 1.96).toFixed(2) : "—";
+  const base    = livePrice || market.price || 83241;
+  const dec     = base < 10 ? 4 : 2;
+  const fmt     = (p) => base < 10 ? `$${Number(p).toFixed(4)}` : `$${Number(p).toLocaleString()}`;
+  const fee     = size ? (parseFloat(size) * 0.02).toFixed(2) : "—";
+  const net     = size ? (parseFloat(size) * 0.98).toFixed(2) : "—";
+  const payout  = size ? (parseFloat(size) * 1.96).toFixed(2) : "—";
+
+  const slDefault = (base * (dir==="higher" ? 0.98 : 1.02)).toFixed(dec);
+  const tpDefault = (base * (dir==="higher" ? 1.02 : 0.98)).toFixed(dec);
 
   const handleTrade = async () => {
-    if (!market || !size) return;
-    await openPosition({
-      marketId: market.id || 1,
-      higher:   dir === "higher",
-      size:     parseFloat(size),
-      slPrice:  sl ? parseFloat(sl) : 0,
-      tpPrice:  tp ? parseFloat(tp) : 0,
-    });
+    if (!size || !window.ethereum) return;
+    setLoading(true);
+    setError(null);
+    setTxHash(null);
+    try {
+      const provider  = new ethers.BrowserProvider(window.ethereum);
+      const signer    = await provider.getSigner();
+      const usdc      = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+      const pm        = new ethers.Contract(PM_ADDRESS, PM_ABI, signer);
+      const sizeUnits = ethers.parseUnits(size, 6);
+      const marketId  = MARKET_IDS[market.id] ?? 0;
+
+      // Check and approve USDC if needed
+      const allowance = await usdc.allowance(address, PM_ADDRESS);
+      if (allowance < sizeUnits) {
+        const approveTx = await usdc.approve(PM_ADDRESS, ethers.MaxUint256);
+        await approveTx.wait();
+      }
+
+      // Convert SL/TP to price units (multiply by 1e18)
+      const slWei = sl ? ethers.parseEther(String(parseFloat(sl))) : 0n;
+      const tpWei = tp ? ethers.parseEther(String(parseFloat(tp))) : 0n;
+
+      const tx      = await pm.openPosition(marketId, dir === "higher", sizeUnits, slWei, tpWei);
+      const receipt = await tx.wait();
+      setTxHash(receipt.hash);
+      setSize(""); setSl(""); setTp("");
+    } catch (err) {
+      setError(err.reason || err.shortMessage || err.message?.slice(0,80) || "Transaction failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="tp">
-
       <div className="tp-head">
         <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
           <span className="tp-name">{market.symbol}/USDC</span>
@@ -55,14 +90,14 @@ export default function TradePanel({ market }) {
         <span className="tp-price">{fmt(base)}</span>
       </div>
 
-      {isConnected && !autosignEnabled && (
+      {isConnected && (
         <div className="tp-autosign">
           <span style={{fontSize:"18px"}}>⚡</span>
           <div>
-            <div style={{fontSize:"11px",fontWeight:600,color:"#e2e8f0"}}>Auto-signing available</div>
-            <div style={{fontSize:"10px",color:"#94a3b8"}}>Trade instantly — no popups</div>
+            <div style={{fontSize:"11px",fontWeight:600,color:"#e2e8f0"}}>MetaMask · predx-1</div>
+            <div style={{fontSize:"10px",color:"#94a3b8"}}>{address?.slice(0,6)}...{address?.slice(-4)}</div>
           </div>
-          <button className="as-btn" onClick={enableAutosign}>Enable</button>
+          <span style={{fontSize:"10px",color:"#3fb950",fontWeight:700}}>LIVE</span>
         </div>
       )}
 
@@ -83,7 +118,7 @@ export default function TradePanel({ market }) {
         </div>
         <div className="tp-presets">
           {[10,25,50,100,250].map(n=>(
-            <button key={n} className={`tp-preset ${size==n?"on":""}`} onClick={()=>setSize(String(n))}>$  {n}</button>
+            <button key={n} className={`tp-preset ${size==n?"on":""}`} onClick={()=>setSize(String(n))}>$ {n}</button>
           ))}
         </div>
       </div>
@@ -94,55 +129,57 @@ export default function TradePanel({ market }) {
           <span className="sltp-tag">RISK MANAGEMENT</span>
         </div>
 
-        <div className="sltp-field">
-          <div className="sltp-field-label">
-            <span style={{color:"#f85149",fontWeight:700}}>Stop Loss</span>
+        <div style={{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:"7px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{color:"#f85149",fontWeight:700,fontSize:"12px"}}>Stop Loss</span>
             <span style={{fontSize:"10px",color:"#484f58"}}>
-              {dir==="higher" ? `price drops below ${fmt(base)}` : `price rises above ${fmt(base)}`}
+              {dir==="higher"?`below ${fmt(base)}`:`above ${fmt(base)}`}
             </span>
           </div>
-          <div className="sltp-inp sl">
-            <span className="sltp-sym sl-sym">$</span>
+          <div style={{display:"flex",alignItems:"center",background:"#0d1117",border:"2px solid rgba(248,81,73,0.4)",borderRadius:"8px",overflow:"hidden",height:"44px"}}>
+            <span style={{padding:"0 12px",color:"#f85149",fontWeight:700,fontSize:"14px",borderRight:"1px solid #21262d"}}>$</span>
             <input
               type="number"
-              placeholder={dir==="higher" ? (base*0.98).toFixed(dec) : (base*1.02).toFixed(dec)}
+              placeholder={slDefault}
               value={sl}
               onChange={e=>setSl(e.target.value)}
+              style={{flex:1,background:"transparent",border:"none",padding:"0 10px",color:"#f0f6fc",fontSize:"14px",fontWeight:500,outline:"none"}}
             />
-            <span className="sltp-unit">USD</span>
+            <span style={{padding:"0 10px",fontSize:"10px",color:"#484f58",borderLeft:"1px solid #21262d"}}>USD</span>
           </div>
           {sl && size && (
-            <div className="sltp-pill sl-pill">
-              SL hit → you receive ${(parseFloat(size)*0.20).toFixed(2)} back (20% refund)
+            <div style={{fontSize:"10px",color:"#f85149",background:"rgba(248,81,73,0.08)",padding:"5px 10px",borderRadius:"5px",border:"1px solid rgba(248,81,73,0.15)"}}>
+              SL hit → receive ${(parseFloat(size)*0.20).toFixed(2)} back (20% refund)
             </div>
           )}
         </div>
 
-        <div className="sltp-field">
-          <div className="sltp-field-label">
-            <span style={{color:"#3fb950",fontWeight:700}}>Take Profit</span>
+        <div style={{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:"7px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{color:"#3fb950",fontWeight:700,fontSize:"12px"}}>Take Profit</span>
             <span style={{fontSize:"10px",color:"#484f58"}}>
-              {dir==="higher" ? `price rises above ${fmt(base)}` : `price drops below ${fmt(base)}`}
+              {dir==="higher"?`above ${fmt(base)}`:`below ${fmt(base)}`}
             </span>
           </div>
-          <div className="sltp-inp tp">
-            <span className="sltp-sym tp-sym">$</span>
+          <div style={{display:"flex",alignItems:"center",background:"#0d1117",border:"2px solid rgba(63,185,80,0.4)",borderRadius:"8px",overflow:"hidden",height:"44px"}}>
+            <span style={{padding:"0 12px",color:"#3fb950",fontWeight:700,fontSize:"14px",borderRight:"1px solid #21262d"}}>$</span>
             <input
               type="number"
-              placeholder={dir==="higher" ? (base*1.02).toFixed(dec) : (base*0.98).toFixed(dec)}
+              placeholder={tpDefault}
               value={tp}
               onChange={e=>setTp(e.target.value)}
+              style={{flex:1,background:"transparent",border:"none",padding:"0 10px",color:"#f0f6fc",fontSize:"14px",fontWeight:500,outline:"none"}}
             />
-            <span className="sltp-unit">USD</span>
+            <span style={{padding:"0 10px",fontSize:"10px",color:"#484f58",borderLeft:"1px solid #21262d"}}>USD</span>
           </div>
           {tp && size && (
-            <div className="sltp-pill tp-pill">
-              TP hit → you receive ${(parseFloat(size)*1.80).toFixed(2)} (180% early exit)
+            <div style={{fontSize:"10px",color:"#3fb950",background:"rgba(63,185,80,0.08)",padding:"5px 10px",borderRadius:"5px",border:"1px solid rgba(63,185,80,0.15)"}}>
+              TP hit → receive ${(parseFloat(size)*1.80).toFixed(2)} (180% early exit)
             </div>
           )}
         </div>
 
-        <div className="sltp-note">
+        <div style={{margin:"12px 14px 14px",fontSize:"10px",color:"#484f58",lineHeight:"1.6",padding:"8px 10px",background:"#161b22",borderRadius:"6px",border:"1px solid #21262d"}}>
           Both orders auto-execute on-chain via keeper bot — no manual action needed
         </div>
       </div>
@@ -150,22 +187,31 @@ export default function TradePanel({ market }) {
       <div className="tp-summary">
         <div className="sum-r"><span>Entry size</span><span>${net}</span></div>
         <div className="sum-r"><span>Protocol fee (2%)</span><span>-${fee}</span></div>
-        <div className="sum-r hl">
-          <span>Max payout</span>
-          <span style={{color:"#3fb950",fontWeight:700}}>${payout}</span>
-        </div>
+        <div className="sum-r hl"><span>Max payout</span><span style={{color:"#3fb950",fontWeight:700}}>${payout}</span></div>
       </div>
+
+      {txHash && (
+        <div style={{margin:"0 14px",padding:"10px 12px",background:"rgba(63,185,80,0.1)",border:"1px solid rgba(63,185,80,0.3)",borderRadius:"8px",fontSize:"11px",color:"#3fb950",wordBreak:"break-all"}}>
+          ✓ Position opened on predx-1!<br/>Tx: {txHash}
+        </div>
+      )}
+      {error && (
+        <div style={{margin:"0 14px",padding:"10px 12px",background:"rgba(248,81,73,0.1)",border:"1px solid rgba(248,81,73,0.3)",borderRadius:"8px",fontSize:"11px",color:"#f85149"}}>
+          ⚠ {error}
+        </div>
+      )}
 
       {!isConnected ? (
         <button className="tp-cta connect" onClick={connect}>Connect Wallet to Trade</button>
       ) : (
-        <button className={`tp-cta trade ${dir}`} onClick={handleTrade} disabled={!size||isLoading}>
-          {isLoading ? "Submitting..." : `${dir==="higher"?"▲":"▼"} BUY ${dir.toUpperCase()} ${market.symbol}`}
-          {autosignEnabled && <span style={{position:"absolute",right:14,fontSize:14}}>⚡</span>}
+        <button className={`tp-cta trade ${dir}`} onClick={handleTrade} disabled={!size||loading}>
+          {loading
+            ? "Submitting to predx-1..."
+            : `${dir==="higher"?"▲":"▼"} BUY ${dir.toUpperCase()} ${market.symbol}`}
         </button>
       )}
 
-      <div className="tp-foot">Powered by Initia · Auto-signing · Interwoven Bridge</div>
+      <div className="tp-foot">Powered by Initia · predx-1 · On-chain SL/TP</div>
     </div>
   );
 }
