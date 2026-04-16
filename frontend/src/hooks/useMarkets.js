@@ -69,7 +69,7 @@ export function useMarkets(activeTF) {
     };
 
     load();
-    const id = setInterval(load, 10000); // refresh every 10s
+    const id = setInterval(load, 3000); // refresh every 3s
     return () => clearInterval(id);
   }, [activeTF]);
 

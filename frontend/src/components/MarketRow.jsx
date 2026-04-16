@@ -33,8 +33,8 @@ function MarketChip({ market, isSelected, onClick, price }) {
           <span className="mchip-dot" style={{ background: COLORS[market.symbol] }} />
           <span>{market.symbol}/USDC</span>
         </div>
-        <span className="mchip-timer" style={{ color: remaining === "0:00" ? "#f85149" : "#3fb950" }}>
-          {remaining}
+        <span className="mchip-timer" style={{ color: remaining === "0:00" ? "#f5a623" : "#3fb950" }}>
+          {remaining === "0:00" ? "⏳ Next round soon" : remaining}
         </span>
       </div>
       <div className="mchip-price">{fmt}</div>
