@@ -24,7 +24,32 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// PredX EVM rollup chain config
+// PredX Cosmos REST base URL — served through nginx /cosmos/ proxy on the chain domain.
+// After the chain Dockerfile nginx update, /cosmos/* routes to port 1317 (Cosmos REST).
+const CHAIN_RPC_URL  = import.meta.env.VITE_RPC_URL  || "http://localhost:8080";
+const CHAIN_REST_URL = CHAIN_RPC_URL.replace(/\/$/, "") + "/cosmos";
+
+// InterwovenKit customChain config for predx-1.
+// Registers our Railway-hosted minitia EVM rollup so IWK can:
+//   1. Resolve addresses on the chain
+//   2. Submit authz + feegrant for Auto-Sign via the Cosmos REST API
+//   3. Broadcast MsgCall transactions via the json-rpc endpoint
+const predxIwkChain = {
+  chain_id:     "predx-1",
+  chain_name:   "predx",
+  pretty_name:  "PredX",
+  bech32_prefix: "init",
+  logo_URIs:    { png: "" },
+  apis: {
+    rpc:        [],
+    rest:       [{ address: CHAIN_REST_URL }],
+    "json-rpc": [{ address: CHAIN_RPC_URL }],
+    indexer:    [],
+  },
+  metadata: { minitia: { type: "minievm" } },
+};
+
+// PredX EVM rollup chain config (wagmi)
 // Chain ID 674323531314972 = 0x2654b2e8c371c (from weave init / forge broadcast)
 const predxChain = {
   id: 674323531314972,
@@ -60,6 +85,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           */}
           <InterwovenKitProvider
             chainId="initiation-2"
+            customChain={predxIwkChain}
             enableAutoSign={{
               "predx-1": ["/minievm.evm.v1.MsgCall"],
             }}

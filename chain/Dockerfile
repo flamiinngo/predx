@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y \
-    ca-certificates curl wget && \
+    ca-certificates curl wget nginx && \
     rm -rf /var/lib/apt/lists/*
 
 # Download minitiad v1.2.15 (the EVM rollup node binary)
@@ -18,6 +18,22 @@ COPY minitia_home /root/.minitia
 RUN sed -i 's/enable-unsafe-cors = false/enable-unsafe-cors = true/g' /root/.minitia/config/app.toml && \
     sed -i 's/enabled-unsafe-cors = false/enabled-unsafe-cors = true/g' /root/.minitia/config/app.toml
 
-EXPOSE 8545 1317 26657
+# nginx proxy on port 8080:
+#   /cosmos/* → Cosmos REST on :1317 (strips /cosmos prefix)
+#   /*        → EVM JSON-RPC on :8545
+# This lets Railway expose a single port while serving both APIs.
+COPY nginx.conf /etc/nginx/sites-available/predx
+RUN rm -f /etc/nginx/sites-enabled/default && \
+    ln -s /etc/nginx/sites-available/predx /etc/nginx/sites-enabled/predx
 
-CMD ["minitiad", "start", "--home", "/root/.minitia"]
+# Startup: nginx as daemon, minitiad in foreground
+RUN echo '#!/bin/sh\nnginx\nexec minitiad start --home /root/.minitia' > /usr/local/bin/start.sh && \
+    chmod +x /usr/local/bin/start.sh
+
+# 8080 = nginx proxy (Railway routes here)
+# 8545 = EVM JSON-RPC (internal only after nginx)
+# 1317 = Cosmos REST (internal only after nginx)
+# 26657 = CometBFT RPC (internal)
+EXPOSE 8080 8545 1317 26657
+
+CMD ["/usr/local/bin/start.sh"]

@@ -140,6 +140,7 @@ export default function TradePanel({ market, livePrice }) {
     // ── Auto-Sign path (InterwovenKit) — zero popups ──────────────────────
     // Batches approve + openPosition into a single Cosmos tx, signed silently
     // by the Ghost Wallet when Auto-Sign is enabled for /minievm.evm.v1.MsgCall.
+    // Uses EncodeObject format with typeUrl + camelCase value fields (CosmJS).
     if (isIwkConnected && autoSignOn && requestTxSync && initiaAddress) {
       try {
         setStep("trading");
@@ -148,34 +149,40 @@ export default function TradePanel({ market, livePrice }) {
         // Approve USDC if allowance is insufficient (batched into same tx)
         if (allowance < sizeUnits) {
           msgs.push({
-            "@type": "/minievm.evm.v1.MsgCall",
-            sender:        initiaAddress,
-            contract_addr: USDC_ADDRESS,
-            input: encodeFunctionData({
-              abi: USDC_ABI, functionName: "approve",
-              args: [PM_ADDRESS, maxUint256],
-            }),
-            value:       "0",
-            access_list: [],
+            typeUrl: "/minievm.evm.v1.MsgCall",
+            value: {
+              sender:       initiaAddress,
+              contractAddr: USDC_ADDRESS,
+              input: encodeFunctionData({
+                abi: USDC_ABI, functionName: "approve",
+                args: [PM_ADDRESS, maxUint256],
+              }),
+              value:      "0",
+              accessList: [],
+              authList:   [],
+            },
           });
         }
 
         // openPosition
         msgs.push({
-          "@type": "/minievm.evm.v1.MsgCall",
-          sender:        initiaAddress,
-          contract_addr: PM_ADDRESS,
-          input: encodeFunctionData({
-            abi: PM_ABI, functionName: "openPosition",
-            args: [marketId, dir === "higher", sizeUnits, slWei, tpWei],
-          }),
-          value:       "0",
-          access_list: [],
+          typeUrl: "/minievm.evm.v1.MsgCall",
+          value: {
+            sender:       initiaAddress,
+            contractAddr: PM_ADDRESS,
+            input: encodeFunctionData({
+              abi: PM_ABI, functionName: "openPosition",
+              args: [marketId, dir === "higher", sizeUnits, slWei, tpWei],
+            }),
+            value:      "0",
+            accessList: [],
+            authList:   [],
+          },
         });
 
-        const result = await requestTxSync({ chain_id: "predx-1", messages: msgs });
-        const hash   = result?.txhash || result?.tx_hash || result?.hash || "confirmed";
-        setTxHash(hash);
+        // requestTxSync returns Promise<string> — the tx hash directly
+        const hash = await requestTxSync({ chainId: "predx-1", messages: msgs });
+        setTxHash(typeof hash === "string" ? hash : "confirmed");
         setStep("done");
         setSize(""); setSl(""); setTp("");
       } catch (err) {
