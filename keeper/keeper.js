@@ -76,6 +76,15 @@ const TF_LABELS  = ["1min", "5min", "15min"]; // indexed by timeframe enum value
 
 // Ensure keeper has infinite USDC approval for seeding
 async function ensureApproval() {
+  // Mint USDC for seeder if balance is low
+  const seederBal = await usdcSeeder.balanceOf(seederWallet.address);
+  if (seederBal < ethers.parseUnits("50000", 6)) {
+    console.log(`[SEED] Seeder balance low ($${(Number(seederBal)/1e6).toFixed(0)}) — minting $100,000 USDC...`);
+    const mintTx = await usdcSeeder.mint(seederWallet.address, ethers.parseUnits("100000", 6), { gasLimit: 150_000 });
+    await mintTx.wait();
+    console.log("[SEED] Minted $100,000 USDC for seeder.");
+  }
+
   const allowance = await usdcSeeder.allowance(seederWallet.address, PM_ADDR);
   if (allowance < ethers.parseUnits("1000000", 6)) {
     console.log("[SEED] Approving USDC for seeder → PM...");
