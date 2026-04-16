@@ -35,16 +35,19 @@ const CHAIN_REST_URL = CHAIN_RPC_URL.replace(/\/$/, "") + "/cosmos";
 //   2. Submit authz + feegrant for Auto-Sign via the Cosmos REST API
 //   3. Broadcast MsgCall transactions via the json-rpc endpoint
 const predxIwkChain = {
-  chain_id:     "predx-1",
-  chain_name:   "predx",
-  pretty_name:  "PredX",
+  chain_id:      "predx-1",
+  chain_name:    "predx",
+  pretty_name:   "PredX",
   bech32_prefix: "init",
-  logo_URIs:    { png: "" },
+  logo_URIs:     { png: "" },
   apis: {
-    rpc:        [],
+    // IWK requires non-empty arrays — provide chain URL for all endpoints.
+    // Tendermint RPC (26657) is internal-only; pointing to the same host
+    // is harmless (auto-sign only uses REST + json-rpc).
+    rpc:        [{ address: CHAIN_RPC_URL }],
     rest:       [{ address: CHAIN_REST_URL }],
     "json-rpc": [{ address: CHAIN_RPC_URL }],
-    indexer:    [],
+    indexer:    [{ address: CHAIN_RPC_URL }],
   },
   metadata: { minitia: { type: "minievm" } },
 };
