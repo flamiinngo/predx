@@ -1,4 +1,11 @@
 {
+  "scripts": {
+    "dev":   "npm run dev   --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run preview --prefix frontend",
+    "keeper": "cd keeper && node keeper.js",
+    "setup":  "cd keeper && node setup.js"
+  },
   "dependencies": {
     "@initia/interwovenkit-react": "^2.5.1",
     "@tanstack/react-query": "^5.96.1",

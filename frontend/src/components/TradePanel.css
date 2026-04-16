@@ -94,3 +94,37 @@
 .tp-cta:disabled { opacity:0.4; cursor:not-allowed; }
 
 .tp-foot { text-align:center; font-size:10px; color:#2a3045; padding:0 16px 14px; }
+
+/* Auto-sign tag */
+.tp-autosign-tag {
+  font-size: 9px; font-weight: 700;
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.4);
+  color: #818cf8;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Wallet row */
+.tp-wallet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 8px;
+}
+
+/* Spinner */
+.tp-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

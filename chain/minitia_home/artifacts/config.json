@@ -1,0 +1,78 @@
+{
+ "l1_config": {
+  "chain_id": "initiation-2",
+  "rpc_url": "https://rpc.testnet.initia.xyz:443",
+  "gas_prices": "0.015uinit"
+ },
+ "l2_config": {
+  "chain_id": "predx-1",
+  "denom": "GAS",
+  "moniker": "predx-node",
+  "block_max_bytes": 22020096,
+  "block_max_gas": 100000000
+ },
+ "op_bridge": {
+  "output_submission_interval": "1m0s",
+  "output_finalization_period": "168h0m0s",
+  "output_submission_start_height": 1,
+  "batch_submission_target": "INITIA",
+  "enable_oracle": true
+ },
+ "system_keys": {
+  "admin": {
+   "l1_address": "init13u6w0l5505kk3t0zygxflsemcdhjene7lmwk0y",
+   "l2_address": "init13u6w0l5505kk3t0zygxflsemcdhjene7lmwk0y",
+   "mnemonic": "silly combine enrich share upset life later kidney pony mix unaware defense glow tooth motion pass zone guide brief express leopard carpet noise morning"
+  },
+  "validator": {
+   "l1_address": "init13u6w0l5505kk3t0zygxflsemcdhjene7lmwk0y",
+   "l2_address": "init13u6w0l5505kk3t0zygxflsemcdhjene7lmwk0y",
+   "mnemonic": "silly combine enrich share upset life later kidney pony mix unaware defense glow tooth motion pass zone guide brief express leopard carpet noise morning"
+  },
+  "bridge_executor": {
+   "l1_address": "init1gqa9y9wxhmc66m6g3gqqy0fukpj8yhw38qrx9n",
+   "l2_address": "init1gqa9y9wxhmc66m6g3gqqy0fukpj8yhw38qrx9n",
+   "mnemonic": "knee warrior empty couple rally pelican raw demand grain tennis elbow sentence empower bid pool rebel skill connect voice caution empower dice churn coffee"
+  },
+  "output_submitter": {
+   "l1_address": "init1fmnzw3vn5cmket59eaanuj77rd2vtk0fkg3lg2",
+   "l2_address": "init1fmnzw3vn5cmket59eaanuj77rd2vtk0fkg3lg2",
+   "mnemonic": "observe hospital urban melt loyal illness cream swing must usual enforce man magnet orient chronic pilot bid spend prevent attract surge organ system village"
+  },
+  "batch_submitter": {
+   "da_address": "init1rx5690vppcqfnjvhx2eyg63h7ctmsxz2h0wjfq",
+   "mnemonic": "horse involve distance phone oxygen monkey crime legend lake later feed deposit scrub obey soldier check injury choose nerve run trick walk warfare faint"
+  },
+  "challenger": {
+   "l1_address": "init1meyrn49qyqagvlq3ktzdvh9f6l5rw23vcdv3fs",
+   "l2_address": "init1meyrn49qyqagvlq3ktzdvh9f6l5rw23vcdv3fs",
+   "mnemonic": "foil dance coyote also flash express sting ski mistake today normal open unhappy involve shaft marble trash february then gasp rate alone save birth"
+  }
+ },
+ "genesis_accounts": [
+  {
+   "address": "init1wy4pfxcll72n6d2l8skfq3qadkmvhqr5kuu9j9",
+   "coins": "1000000000000000000000000GAS"
+  },
+  {
+   "address": "init13u6w0l5505kk3t0zygxflsemcdhjene7lmwk0y",
+   "coins": "0GAS"
+  },
+  {
+   "address": "init1gqa9y9wxhmc66m6g3gqqy0fukpj8yhw38qrx9n",
+   "coins": "0GAS"
+  },
+  {
+   "address": "init1fmnzw3vn5cmket59eaanuj77rd2vtk0fkg3lg2",
+   "coins": "0GAS"
+  },
+  {
+   "address": "init1meyrn49qyqagvlq3ktzdvh9f6l5rw23vcdv3fs",
+   "coins": "0GAS"
+  },
+  {
+   "address": "init1rx5690vppcqfnjvhx2eyg63h7ctmsxz2h0wjfq",
+   "coins": "0GAS"
+  }
+ ]
+}

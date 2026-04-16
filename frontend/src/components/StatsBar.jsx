@@ -1,26 +1,61 @@
-import { useLivePrices } from "../hooks/useLivePrices";
+import { useStats } from "../hooks/useStats";
 import "./StatsBar.css";
 
-const STATS = [
-  { label: "24h Volume", value: "$4.82M", change: "+12.4%" },
-  { label: "Open Interest", value: "$1.24M", change: "+3.1%" },
-  { label: "Active Markets", value: "9", change: null },
-  { label: "Total Traders", value: "1,847", change: "+24" },
-  { label: "LP TVL", value: "$892K", change: "+5.2%" },
-  { label: "Protocol Fees", value: "$9,640", change: "+8.1%" },
-];
+function fmt(val, prefix = "$") {
+  if (val === null || val === undefined) return "—";
+  if (val >= 1_000_000) return `${prefix}${(val / 1_000_000).toFixed(2)}M`;
+  if (val >= 1_000)     return `${prefix}${(val / 1_000).toFixed(1)}K`;
+  return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
 
 export default function StatsBar() {
+  const stats = useStats();
+
+  const items = [
+    {
+      label: "LP TVL",
+      value: fmt(stats.tvl),
+      tag:   stats.tvl !== null ? "live" : null,
+    },
+    {
+      label: "Total Deposited",
+      value: fmt(stats.totalDeposited),
+      tag:   stats.totalDeposited !== null ? "live" : null,
+    },
+    {
+      label: "Active Markets",
+      value: stats.activeMarkets !== null ? String(stats.activeMarkets) : "—",
+      tag:   stats.activeMarkets !== null ? "live" : null,
+    },
+    {
+      label: "Total Trades",
+      value: stats.totalTrades !== null
+        ? stats.totalTrades.toLocaleString()
+        : "—",
+      tag:   stats.totalTrades !== null ? "live" : null,
+    },
+    {
+      label: "Protocol",
+      value: "predx-1",
+      tag:   "Initia EVM",
+    },
+    {
+      label: "Oracle",
+      value: "ConnectOracle",
+      tag:   "Band Protocol",
+    },
+  ];
+
   return (
     <div className="stats-bar">
-      {STATS.map((s) => (
+      {items.map((s) => (
         <div key={s.label} className="stat-item">
           <span className="stat-label">{s.label}</span>
           <div className="stat-row">
             <span className="stat-val">{s.value}</span>
-            {s.change && (
-              <span className={`stat-chg ${s.change.startsWith("+") ? "up" : "dn"}`}>
-                {s.change}
+            {s.tag && (
+              <span className={`stat-tag ${s.tag === "live" ? "live" : "info"}`}>
+                {s.tag === "live" ? "● live" : s.tag}
               </span>
             )}
           </div>

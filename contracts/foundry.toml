@@ -5,7 +5,9 @@ lib = ["lib"]
 remappings = ["@openzeppelin/=lib/openzeppelin-contracts/"]
 optimizer = true
 optimizer_runs = 200
-solc_version = "0.8.20"
+solc_version = "0.8.24"
+via_ir = true
 
 [rpc_endpoints]
 predx_local = "http://localhost:8545"
+predx_testnet = "https://rpc.predx-1.initia.xyz"

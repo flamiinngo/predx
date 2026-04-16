@@ -1,75 +1,245 @@
 .header {
-  height: 56px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   padding: 0 20px;
+  height: 56px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 200;
-  gap: 24px;
-}
-.header-brand { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
-.logo { display: flex; align-items: center; gap: 8px; }
-.logo-mark {
-  width: 30px; height: 30px;
-  background: linear-gradient(135deg, #6366f1, #818cf8);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 14px; color: #fff;
-}
-.logo-name { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--text); }
-.logo-tag {
-  font-size: 9px; font-weight: 700; letter-spacing: 1px;
-  background: var(--accent3); color: var(--accent2);
-  padding: 2px 6px; border-radius: 4px; border: 1px solid var(--accent);
+  backdrop-filter: blur(12px);
 }
 
+/* ── Brand ────────────────────────────────── */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #1e1b4b, #312e81);
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+.logo-name {
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #e2e8f0, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.3px;
+}
+.logo-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Ticker ───────────────────────────────── */
 .ticker-bar {
-  display: flex; align-items: center; gap: 20px;
-  padding: 0 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-left: 16px;
   border-left: 1px solid var(--border);
 }
-.ticker-item { display: flex; align-items: center; gap: 6px; }
-.ticker-sym   { font-size: 11px; font-weight: 600; color: var(--text2); }
-.ticker-price { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ticker-chg   { font-size: 10px; font-weight: 600; }
-.ticker-chg.up { color: var(--higher); }
-.ticker-chg.dn { color: var(--lower); }
-
-.header-nav { display: flex; align-items: center; gap: 2px; flex: 1; justify-content: center; }
-.nav-link {
-  padding: 6px 14px; border-radius: 6px;
-  color: var(--text2); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s; text-decoration: none;
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
 }
-.nav-link:hover { color: var(--text); background: var(--surface2); }
-.nav-link.active { color: var(--text); background: var(--surface2); }
+.ticker-sym   { color: var(--text2); font-weight: 600; font-size: 11px; }
+.ticker-price { color: var(--text);  font-weight: 700; font-variant-numeric: tabular-nums; }
+.ticker-chg.up { color: var(--higher); font-size: 11px; }
+.ticker-chg.dn { color: var(--lower);  font-size: 11px; }
 
-.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* ── Nav ──────────────────────────────────── */
+.header-nav {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+.nav-link {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover  { color: var(--text2); background: var(--surface2); }
+.nav-link.active { color: var(--text);  background: var(--surface3); font-weight: 600; }
+
+/* ── Actions ──────────────────────────────── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Auto-sign button */
+.autosign-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.autosign-btn.enabled {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+.autosign-btn.disabled {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text3);
+}
+.autosign-btn:hover { opacity: 0.85; }
+.autosign-btn:disabled { opacity: 0.5; cursor: default; }
+
+.as-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.as-dot.on  { background: #818cf8; box-shadow: 0 0 6px #6366f1; animation: pulse-as 2s infinite; }
+.as-dot.off { background: var(--text3); }
+.as-tag {
+  font-size: 9px;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: #818cf8;
+}
+
+@keyframes pulse-as {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* Deposit button */
 .btn-deposit {
-  display: flex; align-items: center; gap: 4px;
-  padding: 7px 14px;
+  padding: 6px 14px;
   background: var(--accent3);
   border: 1px solid var(--accent);
   color: var(--accent2);
-  border-radius: 8px; font-size: 12px; font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
   transition: all 0.15s;
 }
 .btn-deposit:hover { background: var(--accent); color: #fff; }
+
+/* Wallet button */
 .btn-wallet {
-  display: flex; align-items: center; gap: 7px;
-  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text2);
+  cursor: pointer;
+}
+.btn-wallet.connect:hover { border-color: #6366f1; color: var(--text); }
+.btn-wallet.connected     { color: var(--text); }
+.btn-wallet.connected:hover { border-color: #6366f1; }
+
+/* Wallet profile dropdown */
+.wallet-profile { position: relative; }
+
+.wallet-avatar {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 800; color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.wallet-name    { font-size: 12px; font-weight: 600; color: var(--text); }
+.wallet-chevron { font-size: 10px; color: var(--text3); }
+
+.wallet-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 210px;
   background: var(--surface2);
   border: 1px solid var(--border2);
-  color: var(--text); border-radius: 8px;
-  font-size: 12px; font-weight: 500; transition: all 0.15s;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 300;
 }
-.btn-wallet:hover { border-color: var(--accent); }
-.btn-wallet.connected { border-color: var(--higher); }
-.status-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: var(--higher);
-  box-shadow: 0 0 6px var(--higher);
+.wm-username {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 12px 4px;
+}
+.wm-init-icon { color: #818cf8; font-size: 14px; }
+.wm-init-name { color: #c4b5fd; font-weight: 700; font-size: 13px; }
+.wm-addr {
+  padding: 2px 12px 8px;
+  font-size: 10px;
+  color: var(--text3);
+  font-family: monospace;
+}
+.wm-divider { height: 1px; background: var(--border); }
+.wm-item {
+  display: block; width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-family: inherit;
+}
+.wm-item:hover { background: var(--surface3); color: var(--text); }
+
+@media (max-width: 1000px) {
+  .ticker-bar { display: none; }
+}
+@media (max-width: 700px) {
+  .header-nav { display: none; }
+  .autosign-btn .as-label { display: none; }
 }

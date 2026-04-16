@@ -1,49 +1,57 @@
-import { useState, useEffect } from "react";
+import { useInterwovenKit } from "@initia/interwovenkit-react";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 
-const PREDX_CHAIN = {
-  chainId:         "0x2654b2e8c371c",
-  chainName:       "PredX (predx-1)",
-  nativeCurrency:  { name: "GAS", symbol: "GAS", decimals: 18 },
-  rpcUrls:         ["http://localhost:8545"],
-  blockExplorerUrls: [],
-};
-
+/**
+ * Unified wallet hook.
+ *
+ * InterwovenKit returns THREE address formats:
+ *   address       — bech32 (init1...) OR hex depending on wallet type
+ *   initiaAddress — always bech32 (init1...)
+ *   hexAddress    — always 0x... EVM hex address
+ *
+ * For ALL EVM operations (ethers, wagmi, contract calls) we must use hexAddress.
+ * username and display can use address/initiaAddress.
+ */
 export function useWallet() {
-  const [address,      setAddress]      = useState(null);
-  const [isConnected,  setIsConnected]  = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const iwk = useInterwovenKit();
+  const wagmiAccount      = useAccount();
+  const { connectAsync }  = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
 
-  useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.request({ method: "eth_accounts" }).then(accounts => {
-        if (accounts.length > 0) { setAddress(accounts[0]); setIsConnected(true); }
-      });
-    }
-  }, []);
+  // Always use the hex EVM address for on-chain operations
+  const evmAddress  = iwk.hexAddress || wagmiAccount.address || null;
+  const isConnected = iwk.isConnected || wagmiAccount.isConnected || false;
+  const username    = iwk.username || null;
 
-  const connect = async () => {
-    if (!window.ethereum) {
-      alert("Please install MetaMask to connect.\n\nGet it at metamask.io");
-      return;
-    }
-    setIsConnecting(true);
+  const connect = () => {
     try {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [PREDX_CHAIN],
-      });
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      setAddress(accounts[0]);
-      setIsConnected(true);
-    } catch (err) {
-      console.error("Connect failed:", err);
-    } finally {
-      setIsConnecting(false);
+      iwk.openConnect();
+    } catch {
+      connectAsync({ connector: injected() }).catch(() => {});
     }
   };
 
-  const disconnect = () => { setAddress(null); setIsConnected(false); };
+  const openWallet = () => {
+    if (iwk.isConnected) iwk.openWallet();
+  };
 
-  return { address, isConnected, isConnecting, connect, disconnect,
-    shortAddr: address ? `${address.slice(0,6)}...${address.slice(-4)}` : null };
+  const disconnect = () => {
+    if (iwk.isConnected) iwk.disconnect();
+    if (wagmiAccount.isConnected) wagmiDisconnect();
+  };
+
+  return {
+    address:    evmAddress,           // always 0x... hex — safe for ethers/wagmi
+    username,
+    isConnected,
+    connect,
+    openWallet,
+    disconnect,
+    shortAddr:  evmAddress
+      ? `${evmAddress.slice(0, 6)}...${evmAddress.slice(-4)}`
+      : null,
+    isIwkConnected:   iwk.isConnected,
+    isWagmiConnected: wagmiAccount.isConnected,
+  };
 }

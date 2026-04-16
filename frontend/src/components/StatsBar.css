@@ -21,3 +21,20 @@
 .stat-chg   { font-size: 10px; font-weight: 600; }
 .stat-chg.up { color: var(--higher); }
 .stat-chg.dn { color: var(--lower); }
+
+.stat-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.stat-tag.live {
+  color: var(--higher);
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.2);
+}
+.stat-tag.info {
+  color: #818cf8;
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.2);
+}

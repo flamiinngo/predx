@@ -23,26 +23,47 @@ contract DeployAll is Script {
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
+
+        // Reuse existing USDC if USDC_ADDRESS env is set (avoids redeploying a working token)
+        address existingUsdc = vm.envOr("USDC_ADDRESS", address(0));
+
         vm.startBroadcast(pk);
 
-        MockUSDC usdc        = new MockUSDC();
-        OracleConsumer oracle = new OracleConsumer();
-        LPVault vault        = new LPVault(address(usdc));
-        MarketFactory factory = new MarketFactory(address(oracle));
-        PositionManager pm   = new PositionManager(address(usdc), address(factory));
-        SLTPManager sltp     = new SLTPManager(address(oracle), address(pm), address(vault));
-        SettlementEngine se  = new SettlementEngine(address(factory), address(pm), address(vault), address(oracle));
+        address usdcAddr;
+        if (existingUsdc != address(0)) {
+            usdcAddr = existingUsdc;
+            console.log("USDC (reused):", usdcAddr);
+        } else {
+            MockUSDC usdc = new MockUSDC();
+            usdcAddr = address(usdc);
+            console.log("USDC (new):   ", usdcAddr);
+        }
 
+        OracleConsumer  oracle  = new OracleConsumer();
+        LPVault         vault   = new LPVault(usdcAddr);
+        MarketFactory   factory = new MarketFactory(address(oracle));
+        PositionManager pm      = new PositionManager(usdcAddr, address(factory));
+        SLTPManager     sltp    = new SLTPManager(address(oracle), address(pm), address(vault));
+        SettlementEngine se     = new SettlementEngine(address(factory), address(pm), address(vault), address(oracle));
+
+        // Wire all contracts together
         factory.setContracts(address(pm), address(vault), address(se));
-        usdc.mint(TESTER, 10_000 * 1e6);
+        vault.setContracts(address(se), address(sltp), address(pm), address(0));
+        pm.setContracts(address(sltp), address(vault), address(se));
 
-        console.log("USDC:      ", address(usdc));
-        console.log("Oracle:    ", address(oracle));
-        console.log("Vault:     ", address(vault));
-        console.log("Factory:   ", address(factory));
-        console.log("PM:        ", address(pm));
-        console.log("SLTP:      ", address(sltp));
-        console.log("Settlement:", address(se));
+        // Seed vault with 10k USDC
+        ERC20(usdcAddr).approve(address(vault), 10_000 * 1e6);
+        vault.deposit(10_000 * 1e6);
+
+        // Give tester some USDC
+        MockUSDC(usdcAddr).mint(TESTER, 10_000 * 1e6);
+
+        console.log("Oracle:     ", address(oracle));
+        console.log("Vault:      ", address(vault));
+        console.log("Factory:    ", address(factory));
+        console.log("PM:         ", address(pm));
+        console.log("SLTP:       ", address(sltp));
+        console.log("Settlement: ", address(se));
 
         vm.stopBroadcast();
     }

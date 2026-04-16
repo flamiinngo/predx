@@ -103,8 +103,14 @@ contract PositionManager {
         p.closed = true;
         p.won    = won;
         p.payout = payoutAmount;
+        // Vault pays winners directly via coverPayout() — don't double-transfer
         if (payoutAmount > 0) usdc.safeTransfer(p.trader, payoutAmount);
         emit PositionClosed(positionId, p.trader, won, payoutAmount, reason);
+    }
+
+    function transferLoserFundsToVault(uint256 amount, address vaultAddr) external onlyAuthorized {
+        require(amount > 0, "PM: zero amount");
+        usdc.safeTransfer(vaultAddr, amount);
     }
 
     function getPosition(uint256 id) external view returns (Position memory) {

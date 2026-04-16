@@ -1,1 +1,1 @@
-test_take_profit_triggers
+test_open_market|test_oracle_fallback_prices|test_oracle_unknown_symbol_reverts|test_settlement_lower_wins

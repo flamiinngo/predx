@@ -1,12 +1,36 @@
 {
   "project_name": "PredX",
   "repo_url": "https://github.com/flamiinngo/predx",
-  "commit_sha": "9420f2e9edecfb7087baf1a22c950814f781b4a8",
+  "commit_sha": "86fc692d8ad92a14c58d208ac9c078e951bb9982",
   "rollup_chain_id": "predx-1",
-  "deployed_address": "0xEc745D99EE8B465F14fe9a07F39913a54A382DBE",
+  "deployed_address": "0x8eed12fbe5059d29d79ee697b44f435fa8f75449",
   "vm": "evm",
-  "native_feature": "auto-signing",
+  "native_features": [
+    "auto-signing",
+    "init-usernames",
+    "connect-oracle",
+    "interwovenkit"
+  ],
+  "native_feature": "connect-oracle",
   "core_logic_path": "contracts/src/SettlementEngine.sol",
-  "native_feature_frontend_path": "frontend/src/hooks/useAutosign.js",
-  "demo_video_url": "FILL_AFTER_RECORDING"
+  "contracts": {
+    "PositionManager":  "0xa820e119a1515e7edcb206d0e6533cc1bd8f01a2",
+    "SettlementEngine": "0x8eed12fbe5059d29d79ee697b44f435fa8f75449",
+    "MarketFactory":    "0x20416ad315d731023974e290c384d71fa409795b",
+    "OracleConsumer":   "0xfb98bf3418eb41b008ca7621db973ec364a06cf7",
+    "LPVault":          "0x823e7698ebba554baf21d71d2deceadbd844cbad",
+    "SLTPManager":      "0xdb9bbd6a98995278d6f489604bb93584bf07e106",
+    "MockUSDC":         "0x8b0F7f39d7d4238e9474a2c59013DBc34a87999d"
+  },
+  "native_feature_paths": {
+    "auto_sign_hook":       "frontend/src/hooks/useAutosign.js",
+    "username_hook":        "frontend/src/hooks/useUsername.js",
+    "wallet_hook":          "frontend/src/hooks/useWallet.js",
+    "oracle_contract":      "contracts/src/OracleConsumer.sol",
+    "keeper_oracle_wire":   "keeper/keeper.js",
+    "interwovenkit_setup":  "frontend/src/main.jsx",
+    "onboarding":           "frontend/src/components/OnboardingModal.jsx",
+    "trade_panel":          "frontend/src/components/TradePanel.jsx"
+  },
+  "demo_video_url": "FILL_WITH_LOOM_OR_YOUTUBE_URL"
 }

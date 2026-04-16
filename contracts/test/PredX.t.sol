@@ -86,7 +86,7 @@ contract PredXTest is Test {
     }
 
     function test_oracle_set_fallback() public {
-        oracle.setFallbackPrice("BTC", 90000 * 1e18);
+        oracle.setPrice("BTC", 90000 * 1e18);
         assertEq(oracle.getPrice("BTC"), 90000 * 1e18);
     }
 
@@ -227,7 +227,7 @@ contract PredXTest is Test {
     function test_settlement_higher_wins() public {
         (uint256 mid, uint256 pos1,) = _setupSettlementTest();
 
-        oracle.setFallbackPrice("BTC", 84000 * 1e18); // price UP — HIGHER wins
+        oracle.setPrice("BTC", 84000 * 1e18); // price UP — HIGHER wins
         uint256 balBefore = usdc.balanceOf(trader1);
 
         vm.warp(block.timestamp + 61 seconds);
@@ -242,7 +242,7 @@ contract PredXTest is Test {
     function test_settlement_lower_wins() public {
         (uint256 mid,, uint256 pos2) = _setupSettlementTest();
 
-        oracle.setFallbackPrice("BTC", 82000 * 1e18); // price DOWN — LOWER wins
+        oracle.setPrice("BTC", 82000 * 1e18); // price DOWN — LOWER wins
         uint256 balBefore = usdc.balanceOf(trader2);
 
         vm.warp(block.timestamp + 61 seconds);
@@ -279,7 +279,7 @@ contract PredXTest is Test {
         uint256 posId = pm.openPosition(mid, true, 100 * 1e6, 81000 * 1e18, 0);
 
         uint256 balBefore = usdc.balanceOf(trader1);
-        oracle.setFallbackPrice("BTC", 80000 * 1e18);
+        oracle.setPrice("BTC", 80000 * 1e18);
 
         vm.prank(keeper); sltp.checkAndExecute();
 
@@ -297,7 +297,7 @@ contract PredXTest is Test {
         uint256 posId = pm.openPosition(mid, true, 100 * 1e6, 0, 85000 * 1e18);
 
         uint256 balBefore = usdc.balanceOf(trader1);
-        oracle.setFallbackPrice("BTC", 86000 * 1e18);
+        oracle.setPrice("BTC", 86000 * 1e18);
 
         vm.prank(keeper); sltp.checkAndExecute();
 
@@ -312,7 +312,7 @@ contract PredXTest is Test {
         vm.prank(trader1);
         uint256 posId = pm.openPosition(mid, true, 100 * 1e6, 81000 * 1e18, 0);
 
-        oracle.setFallbackPrice("BTC", 82000 * 1e18); // above SL
+        oracle.setPrice("BTC", 82000 * 1e18); // above SL
         vm.prank(keeper); sltp.checkAndExecute();
 
         PositionManager.Position memory p = pm.getPosition(posId);
@@ -326,7 +326,7 @@ contract PredXTest is Test {
 
         assertEq(sltp.getActiveOrderCount(), 2);
 
-        oracle.setFallbackPrice("BTC", 80000 * 1e18);
+        oracle.setPrice("BTC", 80000 * 1e18);
         vm.prank(keeper); sltp.checkAndExecute();
 
         assertEq(sltp.getActiveOrderCount(), 1);

@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node keeper.js",
-    "dev": "node --watch keeper.js"
+    "start":  "node keeper.js",
+    "keeper": "node keeper.js",
+    "dev":    "node --watch keeper.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

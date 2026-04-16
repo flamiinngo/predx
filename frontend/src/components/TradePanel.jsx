@@ -1,217 +1,379 @@
 import { useState } from "react";
-import { useWallet } from "../hooks/useWallet";
-import { ethers } from "ethers";
+import { useWallet }    from "../hooks/useWallet";
+import { useAutosign }  from "../hooks/useAutosign";
+import { calcLiveOdds } from "../hooks/useLiveOdds";
+import { useTick }      from "../hooks/useTick";
+import {
+  useWriteContract,
+  useReadContract,
+  useAccount,
+} from "wagmi";
+import { parseUnits, maxUint256 } from "viem";
 import "./TradePanel.css";
 
-const PM_ABI = [
-  "function openPosition(uint256 marketId, bool higher, uint256 size, uint256 slPrice, uint256 tpPrice) external returns (uint256)"
-];
-const USDC_ABI = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) external view returns (uint256)"
-];
-const PM_ADDRESS   = "0x53970243c108E7d8eF24227924F6aEF1db0E98B1";
-const USDC_ADDRESS = "0x28Bc46dE1761EaB4a1BEF1974afE4a6cbF196D34";
+const PM_ADDRESS   = import.meta.env.VITE_POSITION_MANAGER || "";
+const USDC_ADDRESS = import.meta.env.VITE_USDC             || "";
+const FACTORY_ADDR = import.meta.env.VITE_FACTORY          || "";
 
-const MARKET_IDS = { "BTC-1m":0, "BTC-5m":1, "BTC-15m":2, "ETH-1m":3, "ETH-5m":4, "ETH-15m":5, "INIT-1m":6, "INIT-5m":7, "INIT-15m":8 };
+const PM_ABI = [{
+  name: "openPosition", type: "function", stateMutability: "nonpayable",
+  inputs: [
+    { name: "marketId", type: "uint256" }, { name: "higher", type: "bool" },
+    { name: "size",     type: "uint256" }, { name: "slPrice", type: "uint256" },
+    { name: "tpPrice",  type: "uint256" },
+  ],
+  outputs: [{ name: "positionId", type: "uint256" }],
+}];
+
+const USDC_ABI = [
+  { name: "approve",   type: "function", stateMutability: "nonpayable",
+    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
+  { name: "allowance", type: "function", stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }] },
+];
+
+const FACTORY_ABI = [{
+  name: "getHigherProbability", type: "function", stateMutability: "view",
+  inputs: [{ name: "marketId", type: "uint256" }],
+  outputs: [{ name: "bps", type: "uint256" }],
+}];
+
+function useLiveOdds(marketId) {
+  const { data: bps } = useReadContract({
+    address: FACTORY_ADDR, abi: FACTORY_ABI, functionName: "getHigherProbability",
+    args: [marketId ? BigInt(marketId) : 0n],
+    query: { enabled: !!marketId, refetchInterval: 8_000 },
+  });
+  return bps !== undefined ? Number(bps) / 100 : null;
+}
+
+function useAllowance(owner) {
+  const { data } = useReadContract({
+    address: USDC_ADDRESS, abi: USDC_ABI, functionName: "allowance",
+    args: [owner, PM_ADDRESS],
+    query: { enabled: !!owner, refetchInterval: 5_000 },
+  });
+  return data ?? 0n;
+}
 
 export default function TradePanel({ market, livePrice }) {
-  const { isConnected, connect, address } = useWallet();
-  const [dir,     setDir]     = useState("higher");
-  const [size,    setSize]    = useState("");
-  const [sl,      setSl]      = useState("");
-  const [tp,      setTp]      = useState("");
-  const [loading, setLoading] = useState(false);
-  const [txHash,  setTxHash]  = useState(null);
-  const [error,   setError]   = useState(null);
+  const { address, username, isConnected, connect } = useWallet();
+  const { isEnabled: autoSignOn } = useAutosign();
+  const wagmiAccount = useAccount();
+  const effectiveAddress = address || wagmiAccount.address;
+
+  const [dir,    setDir]    = useState("higher");
+  const [size,   setSize]   = useState("");
+  const [sl,     setSl]     = useState("");
+  const [tp,     setTp]     = useState("");
+  const [step,   setStep]   = useState("idle");
+  const [txHash, setTxHash] = useState(null);
+  const [errMsg, setErrMsg] = useState(null);
+
+  useTick(1000); // re-render every second so odds track time
+  const { writeContractAsync } = useWriteContract();
+  const chainOdds = useLiveOdds(market?.marketId);
+  const allowance = useAllowance(effectiveAddress);
 
   if (!market) return (
     <div className="tp empty">
       <div className="empty-hint">
         <div className="empty-arrow">↖</div>
         <p>Select a market</p>
-        <p className="empty-sub">Choose BTC, ETH or INIT</p>
+        <p className="empty-sub">Choose BTC, ETH or INIT above</p>
       </div>
     </div>
   );
 
-  const base    = livePrice || market.price || 83241;
-  const dec     = base < 10 ? 4 : 2;
-  const fmt     = (p) => base < 10 ? `$${Number(p).toFixed(4)}` : `$${Number(p).toLocaleString()}`;
-  const fee     = size ? (parseFloat(size) * 0.02).toFixed(2) : "—";
-  const net     = size ? (parseFloat(size) * 0.98).toFixed(2) : "—";
-  const payout  = size ? (parseFloat(size) * 1.96).toFixed(2) : "—";
+  const price    = livePrice || market?.price || 0;
+  const isINIT   = market?.symbol === "INIT";
+  const decimals = isINIT ? 4 : 2;
+  const fmt      = (p) => isINIT ? `$${Number(p).toFixed(4)}` : `$${Number(p).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const strike   = market?.strikePrice || 0;
+  const delta    = strike > 0 ? ((price - strike) / strike * 100) : 0;
+  const fee      = size ? (parseFloat(size) * 0.02).toFixed(2) : "0.00";
 
-  const slDefault = (base * (dir==="higher" ? 0.98 : 1.02)).toFixed(dec);
-  const tpDefault = (base * (dir==="higher" ? 1.02 : 0.98)).toFixed(dec);
+  // Pool odds — raw on-chain pool ratio (trades move this)
+  const poolOdds   = chainOdds ?? market?.higher ?? 50;
+  const poolLower  = 100 - poolOdds;
+
+  // Time-weighted fair-value odds — incorporates price vs strike + time elapsed.
+  // Near expiry with price clearly above strike, HIGHER odds rise to ~90%+
+  // so obvious bets pay much less than 2x. Prevents last-second "sure thing" gaming.
+  const liveHigher = calcLiveOdds({
+    baseOdds:    poolOdds,
+    livePrice:   price,
+    strikePrice: strike,
+    endTime:     market?.endTime,
+    startTime:   market?.startTime,
+  });
+  const liveLower  = 100 - liveHigher;
+
+  // Payout uses TIME-WEIGHTED odds — if BTC is clearly above strike with 5s left,
+  // HIGHER is likely to win (~90%), so payout is ~1.1x not 2x.
+  // This is how professional binary options mark-to-market.
+  const yourLiveOdds = dir === "higher" ? liveHigher : liveLower;
+  const multiplier   = yourLiveOdds > 0 ? (100 / yourLiveOdds) * 0.98 : 1.96;
+  const payout       = size ? (parseFloat(size) * multiplier).toFixed(2) : "0.00";
+
+  const slPh = dir === "higher"
+    ? (price * 0.97).toFixed(decimals) : (price * 1.03).toFixed(decimals);
+  const tpPh = dir === "higher"
+    ? (price * 1.03).toFixed(decimals) : (price * 0.97).toFixed(decimals);
 
   const handleTrade = async () => {
-    if (!size || !window.ethereum) return;
-    setLoading(true);
-    setError(null);
-    setTxHash(null);
-    try {
-      const provider  = new ethers.BrowserProvider(window.ethereum);
-      const signer    = await provider.getSigner();
-      const usdc      = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-      const pm        = new ethers.Contract(PM_ADDRESS, PM_ABI, signer);
-      const sizeUnits = ethers.parseUnits(size, 6);
-      const marketId  = MARKET_IDS[market.id] ?? 0;
+    if (!size || parseFloat(size) < 1) { setErrMsg("Min $1 USDC"); return; }
+    if (!effectiveAddress) { connect(); return; }
+    const marketId = BigInt(market.marketId || 0);
+    if (marketId === 0n) { setErrMsg("Market not loaded"); return; }
 
-      // Check and approve USDC if needed
-      const allowance = await usdc.allowance(address, PM_ADDRESS);
+    setErrMsg(null); setTxHash(null);
+
+    if (window.ethereum) {
+      try {
+        const chainHex = "0x" + (674323531314972).toString(16);
+        const current  = await window.ethereum.request({ method: "eth_chainId" });
+        if (current !== chainHex) {
+          try {
+            await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainHex }] });
+          } catch {
+            await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+              chainId: chainHex, chainName: "PredX (predx-1)",
+              nativeCurrency: { name: "GAS", symbol: "GAS", decimals: 18 },
+              rpcUrls: [import.meta.env.VITE_RPC_URL || "http://localhost:8545"],
+            }]});
+          }
+        }
+      } catch {}
+    }
+
+    try {
+      const sizeUnits = parseUnits(size, 6);
+      const slWei  = sl ? BigInt(Math.round(parseFloat(sl) * 1e18)) : 0n;
+      const tpWei  = tp ? BigInt(Math.round(parseFloat(tp) * 1e18)) : 0n;
+
       if (allowance < sizeUnits) {
-        const approveTx = await usdc.approve(PM_ADDRESS, ethers.MaxUint256);
-        await approveTx.wait();
+        setStep("approving");
+        await writeContractAsync({
+          address: USDC_ADDRESS, abi: USDC_ABI,
+          functionName: "approve", args: [PM_ADDRESS, maxUint256],
+        });
       }
 
-      // Convert SL/TP to price units (multiply by 1e18)
-      const slWei = sl ? ethers.parseEther(String(parseFloat(sl))) : 0n;
-      const tpWei = tp ? ethers.parseEther(String(parseFloat(tp))) : 0n;
-
-      const tx      = await pm.openPosition(marketId, dir === "higher", sizeUnits, slWei, tpWei);
-      const receipt = await tx.wait();
-      setTxHash(receipt.hash);
+      setStep("trading");
+      const hash = await writeContractAsync({
+        address: PM_ADDRESS, abi: PM_ABI,
+        functionName: "openPosition",
+        args: [marketId, dir === "higher", sizeUnits, slWei, tpWei],
+        gas: 500_000n,
+      });
+      setTxHash(hash);
+      setStep("done");
       setSize(""); setSl(""); setTp("");
     } catch (err) {
-      setError(err.reason || err.shortMessage || err.message?.slice(0,80) || "Transaction failed");
-    } finally {
-      setLoading(false);
+      let msg = err.shortMessage || err.reason || err.message || "Transaction failed";
+      if (msg.includes("does not exist") || msg.includes("sequence"))
+        msg = "Get gas from faucet first (+ Deposit)";
+      else if (msg.includes("expired") || msg.includes("settled"))
+        msg = "Market expired — next one opens in seconds";
+      else if (msg.includes("insufficient") || msg.includes("ERC20"))
+        msg = "Insufficient USDC — claim from faucet";
+      else
+        msg = msg.slice(0, 90);
+      setErrMsg(msg);
+      setStep("error");
     }
   };
 
+  const isLoading = step === "approving" || step === "trading";
+
   return (
     <div className="tp">
+      {/* ── Header ── */}
       <div className="tp-head">
-        <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <span className="tp-name">{market.symbol}/USDC</span>
           <span className="tp-badge">{market.timeframe}</span>
+          {autoSignOn && <span className="tp-autosign-tag">⚡ Auto</span>}
         </div>
-        <span className="tp-price">{fmt(base)}</span>
+        <div style={{ textAlign:"right" }}>
+          <div className="tp-price">{fmt(price)}</div>
+          {strike > 0 && (
+            <div style={{ fontSize:"10px", color:"#8b5cf6", fontWeight:600 }}>
+              Strike {fmt(strike)}
+              <span style={{ marginLeft:"4px", color: delta >= 0 ? "#3fb950" : "#f85149" }}>
+                {delta >= 0 ? "▲" : "▼"}{Math.abs(delta).toFixed(2)}%
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {isConnected && (
-        <div className="tp-autosign">
-          <span style={{fontSize:"18px"}}>⚡</span>
-          <div>
-            <div style={{fontSize:"11px",fontWeight:600,color:"#e2e8f0"}}>MetaMask · predx-1</div>
-            <div style={{fontSize:"10px",color:"#94a3b8"}}>{address?.slice(0,6)}...{address?.slice(-4)}</div>
-          </div>
-          <span style={{fontSize:"10px",color:"#3fb950",fontWeight:700}}>LIVE</span>
+      {/* ── Odds bar — time-weighted live signal ── */}
+      <div style={{ padding:"10px 14px 0" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px", marginBottom:"4px" }}>
+          <span style={{ color:"#3fb950", fontWeight:700 }}>▲ HIGHER {liveHigher}%</span>
+          <span style={{ color:"#4a5568", fontSize:"9px" }}>live signal</span>
+          <span style={{ color:"#f85149", fontWeight:700 }}>{liveLower}% LOWER ▼</span>
         </div>
-      )}
+        <div style={{ height:"5px", borderRadius:"3px", background:"#1f2535", overflow:"hidden" }}>
+          <div style={{
+            height:"100%", width:`${liveHigher}%`,
+            background:"linear-gradient(90deg,#10b981,#3fb950)",
+            borderRadius:"3px", transition:"width 0.5s ease",
+          }} />
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"9px", color:"#4a5568", marginTop:"3px" }}>
+          <span>pool: {poolOdds.toFixed(0)}% H / {poolLower.toFixed(0)}% L</span>
+          <span>payout basis</span>
+        </div>
+      </div>
 
+      {/* ── Direction ── */}
       <div className="tp-dirs">
-        <button className={`tp-dir h ${dir==="higher"?"on":""}`} onClick={()=>setDir("higher")}>▲ HIGHER</button>
-        <button className={`tp-dir l ${dir==="lower" ?"on":""}`} onClick={()=>setDir("lower") }>▼ LOWER</button>
+        <button className={`tp-dir h ${dir==="higher"?"on":""}`}
+          onClick={() => { setDir("higher"); setSl(""); setTp(""); }}>
+          ▲ HIGHER
+          <span style={{ fontSize:"9px", display:"block", opacity:0.65, fontWeight:400 }}>price goes up</span>
+        </button>
+        <button className={`tp-dir l ${dir==="lower"?"on":""}`}
+          onClick={() => { setDir("lower"); setSl(""); setTp(""); }}>
+          ▼ LOWER
+          <span style={{ fontSize:"9px", display:"block", opacity:0.65, fontWeight:400 }}>price goes down</span>
+        </button>
       </div>
 
+      {/* ── Amount ── */}
       <div className="tp-section">
-        <div className="tp-label-row">
-          <span>Amount (USDC)</span>
-          <span style={{fontSize:"10px",color:"#4a5568"}}>Balance: —</span>
-        </div>
+        <div className="tp-label-row"><span>Amount (USDC)</span></div>
         <div className="tp-inp-row">
           <span className="tp-pre">$</span>
-          <input type="number" placeholder="0.00" value={size} onChange={e=>setSize(e.target.value)} />
+          <input type="number" placeholder="0.00" value={size}
+            onChange={e => { setSize(e.target.value); setErrMsg(null); setTxHash(null); setStep("idle"); }} />
           <span className="tp-suf">USDC</span>
         </div>
         <div className="tp-presets">
-          {[10,25,50,100,250].map(n=>(
-            <button key={n} className={`tp-preset ${size==n?"on":""}`} onClick={()=>setSize(String(n))}>$ {n}</button>
+          {[10, 25, 50, 100, 250].map(n => (
+            <button key={n} className={`tp-preset ${size==n?"on":""}`} onClick={() => setSize(String(n))}>
+              ${n}
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="sltp-section">
-        <div className="sltp-header">
-          <span className="sltp-header-title">Stop Loss / Take Profit</span>
-          <span className="sltp-tag">RISK MANAGEMENT</span>
+      {/* ── SL / TP — always visible, compact ── */}
+      <div style={{ padding:"10px 14px 0" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"7px" }}>
+          <span style={{ fontSize:"11px", fontWeight:700, color:"#c9d1d9" }}>Stop Loss / Take Profit</span>
+          <span style={{
+            fontSize:"9px", fontWeight:700, color:"#818cf8",
+            background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.25)",
+            padding:"1px 6px", borderRadius:"10px",
+          }}>⚡ on-chain auto-exec</span>
         </div>
-
-        <div style={{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:"7px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{color:"#f85149",fontWeight:700,fontSize:"12px"}}>Stop Loss</span>
-            <span style={{fontSize:"10px",color:"#484f58"}}>
-              {dir==="higher"?`below ${fmt(base)}`:`above ${fmt(base)}`}
-            </span>
-          </div>
-          <div style={{display:"flex",alignItems:"center",background:"#0d1117",border:"2px solid rgba(248,81,73,0.4)",borderRadius:"8px",overflow:"hidden",height:"44px"}}>
-            <span style={{padding:"0 12px",color:"#f85149",fontWeight:700,fontSize:"14px",borderRight:"1px solid #21262d"}}>$</span>
-            <input
-              type="number"
-              placeholder={slDefault}
-              value={sl}
-              onChange={e=>setSl(e.target.value)}
-              style={{flex:1,background:"transparent",border:"none",padding:"0 10px",color:"#f0f6fc",fontSize:"14px",fontWeight:500,outline:"none"}}
-            />
-            <span style={{padding:"0 10px",fontSize:"10px",color:"#484f58",borderLeft:"1px solid #21262d"}}>USD</span>
-          </div>
-          {sl && size && (
-            <div style={{fontSize:"10px",color:"#f85149",background:"rgba(248,81,73,0.08)",padding:"5px 10px",borderRadius:"5px",border:"1px solid rgba(248,81,73,0.15)"}}>
-              SL hit → receive ${(parseFloat(size)*0.20).toFixed(2)} back (20% refund)
+        <div style={{ display:"flex", gap:"8px" }}>
+          {/* SL */}
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:"10px", color:"#f85149", fontWeight:600, marginBottom:"4px" }}>
+              🛑 SL {dir==="higher"?"↓":"↑"} <span style={{color:"#4a5568",fontSize:"9px"}}>optional</span>
             </div>
-          )}
-        </div>
-
-        <div style={{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:"7px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{color:"#3fb950",fontWeight:700,fontSize:"12px"}}>Take Profit</span>
-            <span style={{fontSize:"10px",color:"#484f58"}}>
-              {dir==="higher"?`above ${fmt(base)}`:`below ${fmt(base)}`}
-            </span>
-          </div>
-          <div style={{display:"flex",alignItems:"center",background:"#0d1117",border:"2px solid rgba(63,185,80,0.4)",borderRadius:"8px",overflow:"hidden",height:"44px"}}>
-            <span style={{padding:"0 12px",color:"#3fb950",fontWeight:700,fontSize:"14px",borderRight:"1px solid #21262d"}}>$</span>
-            <input
-              type="number"
-              placeholder={tpDefault}
-              value={tp}
-              onChange={e=>setTp(e.target.value)}
-              style={{flex:1,background:"transparent",border:"none",padding:"0 10px",color:"#f0f6fc",fontSize:"14px",fontWeight:500,outline:"none"}}
-            />
-            <span style={{padding:"0 10px",fontSize:"10px",color:"#484f58",borderLeft:"1px solid #21262d"}}>USD</span>
-          </div>
-          {tp && size && (
-            <div style={{fontSize:"10px",color:"#3fb950",background:"rgba(63,185,80,0.08)",padding:"5px 10px",borderRadius:"5px",border:"1px solid rgba(63,185,80,0.15)"}}>
-              TP hit → receive ${(parseFloat(size)*1.80).toFixed(2)} (180% early exit)
+            <div style={{
+              display:"flex", alignItems:"center", height:"32px",
+              background:"#0d1117", border:"1px solid rgba(239,68,68,0.35)",
+              borderRadius:"6px", overflow:"hidden",
+            }}>
+              <span style={{ padding:"0 7px", color:"#f85149", fontSize:"11px", borderRight:"1px solid #1f2535" }}>$</span>
+              <input type="number" placeholder={slPh} value={sl} onChange={e => setSl(e.target.value)}
+                style={{ flex:1, background:"transparent", border:"none", padding:"0 7px", color:"#e2e8f0", fontSize:"12px", outline:"none" }} />
             </div>
-          )}
-        </div>
-
-        <div style={{margin:"12px 14px 14px",fontSize:"10px",color:"#484f58",lineHeight:"1.6",padding:"8px 10px",background:"#161b22",borderRadius:"6px",border:"1px solid #21262d"}}>
-          Both orders auto-execute on-chain via keeper bot — no manual action needed
+          </div>
+          {/* TP */}
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:"10px", color:"#3fb950", fontWeight:600, marginBottom:"4px" }}>
+              🎯 TP {dir==="higher"?"↑":"↓"} <span style={{color:"#4a5568",fontSize:"9px"}}>optional</span>
+            </div>
+            <div style={{
+              display:"flex", alignItems:"center", height:"32px",
+              background:"#0d1117", border:"1px solid rgba(63,185,80,0.35)",
+              borderRadius:"6px", overflow:"hidden",
+            }}>
+              <span style={{ padding:"0 7px", color:"#3fb950", fontSize:"11px", borderRight:"1px solid #1f2535" }}>$</span>
+              <input type="number" placeholder={tpPh} value={tp} onChange={e => setTp(e.target.value)}
+                style={{ flex:1, background:"transparent", border:"none", padding:"0 7px", color:"#e2e8f0", fontSize:"12px", outline:"none" }} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="tp-summary">
-        <div className="sum-r"><span>Entry size</span><span>${net}</span></div>
-        <div className="sum-r"><span>Protocol fee (2%)</span><span>-${fee}</span></div>
-        <div className="sum-r hl"><span>Max payout</span><span style={{color:"#3fb950",fontWeight:700}}>${payout}</span></div>
+      {/* ── Summary ── */}
+      <div className="tp-summary" style={{ margin:"10px 14px 0" }}>
+        <div className="sum-r">
+          <span>You win if</span>
+          <span style={{ color: dir==="higher"?"#3fb950":"#f85149", fontWeight:600 }}>
+            {market.symbol} {dir==="higher"?"ABOVE":"BELOW"} {strike > 0 ? fmt(strike) : "strike"}
+          </span>
+        </div>
+        <div className="sum-r">
+          <span>Fee (2%)</span>
+          <span style={{ color:"#f85149" }}>-${fee}</span>
+        </div>
+        <div className="sum-r hl">
+          <span>Payout if correct</span>
+          <span style={{ color:"#3fb950", fontWeight:700 }}>
+            ${payout}
+            <span style={{fontSize:"10px",color:"#4a5568",marginLeft:"4px"}}>{multiplier.toFixed(2)}x · {yourLiveOdds.toFixed(0)}% likely</span>
+          </span>
+        </div>
       </div>
 
-      {txHash && (
-        <div style={{margin:"0 14px",padding:"10px 12px",background:"rgba(63,185,80,0.1)",border:"1px solid rgba(63,185,80,0.3)",borderRadius:"8px",fontSize:"11px",color:"#3fb950",wordBreak:"break-all"}}>
-          ✓ Position opened on predx-1!<br/>Tx: {txHash}
+      {/* ── Feedback ── */}
+      {step === "done" && txHash && (
+        <div style={{
+          margin:"8px 14px 0", padding:"8px 12px",
+          background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.25)",
+          borderRadius:"8px", fontSize:"11px", color:"#3fb950",
+        }}>
+          ✓ Position opened · <span style={{color:"#4a5568",fontSize:"10px"}}>{txHash.slice(0,14)}...{txHash.slice(-6)}</span>
         </div>
       )}
-      {error && (
-        <div style={{margin:"0 14px",padding:"10px 12px",background:"rgba(248,81,73,0.1)",border:"1px solid rgba(248,81,73,0.3)",borderRadius:"8px",fontSize:"11px",color:"#f85149"}}>
-          ⚠ {error}
+      {errMsg && (
+        <div style={{
+          margin:"8px 14px 0", padding:"8px 12px",
+          background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)",
+          borderRadius:"8px", fontSize:"11px", color:"#f85149",
+        }}>
+          ⚠ {errMsg}
         </div>
       )}
 
+      {/* ── CTA ── */}
       {!isConnected ? (
         <button className="tp-cta connect" onClick={connect}>Connect Wallet to Trade</button>
       ) : (
-        <button className={`tp-cta trade ${dir}`} onClick={handleTrade} disabled={!size||loading}>
-          {loading
-            ? "Submitting to predx-1..."
-            : `${dir==="higher"?"▲":"▼"} BUY ${dir.toUpperCase()} ${market.symbol}`}
+        <button
+          className={`tp-cta trade ${dir}`}
+          onClick={handleTrade}
+          disabled={!size || isLoading || parseFloat(size||0) < 1}
+        >
+          {isLoading ? (
+            <span style={{display:"flex",alignItems:"center",gap:"8px",justifyContent:"center"}}>
+              <span className="tp-spinner" />
+              {step === "approving" ? "Approving USDC..." : "Submitting..."}
+            </span>
+          ) : (
+            `${dir==="higher"?"▲":"▼"} ${dir.toUpperCase()} ${market.symbol} · ${multiplier.toFixed(2)}x · ${yourLiveOdds.toFixed(0)}% likely`
+          )}
         </button>
       )}
 
-      <div className="tp-foot">Powered by Initia · predx-1 · On-chain SL/TP</div>
+      <div className="tp-foot">
+        Powered by Initia · predx-1 ·{" "}
+        {autoSignOn
+          ? <span style={{color:"#818cf8"}}>⚡ 1-click active</span>
+          : "settled on-chain"}
+      </div>
     </div>
   );
 }

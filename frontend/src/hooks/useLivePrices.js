@@ -1,52 +1,56 @@
 import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 
-const FALLBACK = { BTC: 69428, ETH: 2140, INIT: 0.082 };
+const ORACLE_ABI = [
+  "function getPrice(string) external view returns (uint256)"
+];
+const ORACLE  = import.meta.env.VITE_ORACLE  || "0xfb98bf3418eb41b008ca7621db973ec364a06cf7";
+const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
+const SYMBOLS = ["BTC", "ETH", "INIT"];
+
+function fmt(sym, price) {
+  if (sym === "INIT") return `$${price.toFixed(4)}`;
+  if (price >= 1000)  return `$${(price / 1000).toFixed(1)}k`;
+  return `$${price.toFixed(2)}`;
+}
 
 export function useLivePrices() {
-  const [prices, setPrices] = useState(() =>
-    Object.fromEntries(
-      Object.entries(FALLBACK).map(([sym, price]) => [sym, {
-        price,
-        change: 0,
-        formatted: sym === "INIT" ? `$${price.toFixed(3)}` : `$${(price/1000).toFixed(2)}k`,
-      }])
-    )
-  );
+  const [prices, setPrices] = useState({});
+  const [prev,   setPrev]   = useState({});
 
   useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const [btcRes, ethRes, initRes] = await Promise.all([
-          fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"),
-          fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT"),
-          fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=INITUSDT"),
-        ]);
-        const [btc, eth, init] = await Promise.all([btcRes.json(), ethRes.json(), initRes.json()]);
+    const provider = new ethers.JsonRpcProvider(RPC_URL, new ethers.Network("predx-1", 674323531314972), { staticNetwork: new ethers.Network("predx-1", 674323531314972) });
+    const oracle   = new ethers.Contract(ORACLE, ORACLE_ABI, provider);
 
-        setPrices({
-          BTC: {
-            price:     parseFloat(btc.lastPrice),
-            change:    parseFloat(btc.priceChangePercent),
-            formatted: `$${(parseFloat(btc.lastPrice)/1000).toFixed(2)}k`,
-          },
-          ETH: {
-            price:     parseFloat(eth.lastPrice),
-            change:    parseFloat(eth.priceChangePercent),
-            formatted: `$${(parseFloat(eth.lastPrice)/1000).toFixed(2)}k`,
-          },
-          INIT: {
-            price:     parseFloat(init.lastPrice),
-            change:    parseFloat(init.priceChangePercent),
-            formatted: `$${parseFloat(init.lastPrice).toFixed(3)}`,
-          },
+    const load = async () => {
+      try {
+        const results = await Promise.all(
+          SYMBOLS.map(async (sym) => {
+            const p = await oracle.getPrice(sym);
+            return [sym, Number(p) / 1e18];
+          })
+        );
+        setPrev(old => {
+          const next = {};
+          for (const [sym, price] of results) {
+            const oldPrice = old[sym]?.price || price;
+            const change   = oldPrice > 0 ? ((price - oldPrice) / oldPrice) * 100 : 0;
+            next[sym] = {
+              price,
+              formatted: fmt(sym, price),
+              change,
+            };
+          }
+          setPrices(next);
+          return next;
         });
       } catch (err) {
-        console.warn("Price fetch failed:", err.message);
+        console.error("Price load failed:", err.message);
       }
     };
 
-    fetchPrices();
-    const id = setInterval(fetchPrices, 15000);
+    load();
+    const id = setInterval(load, 5000);
     return () => clearInterval(id);
   }, []);
 

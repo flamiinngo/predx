@@ -15,6 +15,7 @@ interface IPositionManagerSE {
     function getPosition(uint256 id) external view returns (Position memory);
     function closePosition(uint256 id, bool won, uint256 payout, string calldata reason) external;
     function getTraderPositions(address trader) external view returns (uint256[] memory);
+    function transferLoserFundsToVault(uint256 amount, address vaultAddr) external;
 }
 
 contract SettlementEngine {
@@ -49,6 +50,10 @@ contract SettlementEngine {
     }
 
     function settle(uint256 marketId) external onlyKeeper {
+        _settle(marketId);
+    }
+
+    function _settle(uint256 marketId) internal {
         MarketFactory mf = MarketFactory(factory);
         MarketFactory.Market memory m = mf.getMarket(marketId);
         require(!m.settled, "SE: already settled");
@@ -69,17 +74,21 @@ contract SettlementEngine {
         for (uint256 i; i < posIds.length; i++) {
             IPositionManagerSE.Position memory p = pm.getPosition(posIds[i]);
             if (p.closed) continue;
-            bool won   = (p.higher == higherWon);
+            bool won = (p.higher == higherWon);
             uint256 payout;
             if (won && winnerPool > 0) {
                 payout       = (p.size * (m.totalHigher + m.totalLower)) / winnerPool;
                 totalPayout += payout;
                 winnerCount++;
+                LPVault(vault).coverPayout(payout, p.trader);
             }
-            pm.closePosition(posIds[i], won, payout, "settlement");
+            pm.closePosition(posIds[i], won, 0, "settlement");
         }
 
-        if (loserPool > 0) LPVault(vault).receiveLoserFunds(loserPool);
+        if (loserPool > 0) {
+            IPositionManagerSE(positionManager).transferLoserFundsToVault(loserPool, vault);
+            LPVault(vault).receiveLoserFunds(loserPool);
+        }
 
         emit MarketSettled(marketId, m.symbol, higherWon, finalPrice, totalPayout, winnerCount);
 
@@ -96,7 +105,7 @@ contract SettlementEngine {
                 if (mid == 0) continue;
                 MarketFactory.Market memory m = mf.getMarket(mid);
                 if (!m.settled && block.timestamp >= m.endTime) {
-                    this.settle(mid);
+                    _settle(mid);
                 }
             }
         }
