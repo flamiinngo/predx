@@ -59,7 +59,9 @@ const VAULT_ADDR = process.env.VAULT_ADDRESS || "";
 const provider      = new ethers.JsonRpcProvider(RPC_URL);
 const wallet        = new ethers.Wallet(PRIVATE_KEY, provider);
 const SEEDER_KEY    = process.env.SEEDER_KEY || PRIVATE_KEY;
-const seederWallet  = new ethers.NonceManager(new ethers.Wallet(SEEDER_KEY, provider));
+const _seederBase   = new ethers.Wallet(SEEDER_KEY, provider);
+const seederWallet  = new ethers.NonceManager(_seederBase);
+const SEEDER_ADDR   = _seederBase.address;
 const oracle     = new ethers.Contract(ORACLE_ADDR,     ORACLE_ABI,     wallet);
 const settlement = new ethers.Contract(SETTLEMENT_ADDR, SETTLEMENT_ABI, wallet);
 const factory    = new ethers.Contract(FACTORY_ADDR,    FACTORY_ABI,    wallet);
@@ -77,15 +79,15 @@ const TF_LABELS  = ["1min", "5min", "15min"]; // indexed by timeframe enum value
 // Ensure keeper has infinite USDC approval for seeding
 async function ensureApproval() {
   // Mint USDC for seeder if balance is low
-  const seederBal = await usdcSeeder.balanceOf(seederWallet.address);
+  const seederBal = await usdcSeeder.balanceOf(SEEDER_ADDR);
   if (seederBal < ethers.parseUnits("50000", 6)) {
     console.log(`[SEED] Seeder balance low ($${(Number(seederBal)/1e6).toFixed(0)}) — minting $100,000 USDC...`);
-    const mintTx = await usdcSeeder.mint(seederWallet.address, ethers.parseUnits("100000", 6), { gasLimit: 150_000 });
+    const mintTx = await usdcSeeder.mint(SEEDER_ADDR, ethers.parseUnits("100000", 6), { gasLimit: 150_000 });
     await mintTx.wait();
     console.log("[SEED] Minted $100,000 USDC for seeder.");
   }
 
-  const allowance = await usdcSeeder.allowance(seederWallet.address, PM_ADDR);
+  const allowance = await usdcSeeder.allowance(SEEDER_ADDR, PM_ADDR);
   if (allowance < ethers.parseUnits("1000000", 6)) {
     console.log("[SEED] Approving USDC for seeder → PM...");
     const tx = await usdcSeeder.approve(PM_ADDR, ethers.MaxUint256);
@@ -94,7 +96,7 @@ async function ensureApproval() {
   }
   // Also approve vault for LP deposits
   if (vault) {
-    const vaultAllowance = await usdcSeeder.allowance(seederWallet.address, VAULT_ADDR);
+    const vaultAllowance = await usdcSeeder.allowance(SEEDER_ADDR, VAULT_ADDR);
     if (vaultAllowance < ethers.parseUnits("1000000", 6)) {
       const tx = await usdcSeeder.approve(VAULT_ADDR, ethers.MaxUint256);
       await tx.wait();
@@ -120,9 +122,9 @@ async function fundVault() {
     const needed = VAULT_TOP_UP - bal;
     console.log(`[VAULT] Low balance $${(Number(bal)/1e6).toFixed(0)} — depositing $${(Number(needed)/1e6).toFixed(0)} USDC...`);
     // Mint if seeder doesn't have enough
-    const seederBal = await usdcSeeder.balanceOf(seederWallet.address);
+    const seederBal = await usdcSeeder.balanceOf(SEEDER_ADDR);
     if (seederBal < needed) {
-      const mintTx = await usdcSeeder.mint(seederWallet.address, needed, { gasLimit: 150_000 });
+      const mintTx = await usdcSeeder.mint(SEEDER_ADDR, needed, { gasLimit: 150_000 });
       await mintTx.wait();
       console.log(`[VAULT] Minted $${(Number(needed)/1e6).toFixed(0)} USDC for seeder`);
     }
