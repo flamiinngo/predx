@@ -24,6 +24,12 @@ export function useWallet() {
   const isConnected = iwk.isConnected || wagmiAccount.isConnected || false;
   const username    = iwk.username || null;
 
+  // isIwkConnected: true when IWK has a connected wallet (Keplr/Leap/Initia)
+  // OR when wagmi is connected AND the addresses match (same Keplr key imported to both)
+  const addressesMatch = iwk.hexAddress && wagmiAccount.address &&
+    iwk.hexAddress.toLowerCase() === wagmiAccount.address.toLowerCase();
+  const isIwkConnected = iwk.isConnected || !!addressesMatch;
+
   const connect = () => {
     try {
       iwk.openConnect();
@@ -42,7 +48,7 @@ export function useWallet() {
   };
 
   return {
-    address:    evmAddress,           // always 0x... hex — safe for ethers/wagmi
+    address:    evmAddress,
     username,
     isConnected,
     connect,
@@ -51,7 +57,7 @@ export function useWallet() {
     shortAddr:  evmAddress
       ? `${evmAddress.slice(0, 6)}...${evmAddress.slice(-4)}`
       : null,
-    isIwkConnected:   iwk.isConnected,
+    isIwkConnected,
     isWagmiConnected: wagmiAccount.isConnected,
   };
 }
