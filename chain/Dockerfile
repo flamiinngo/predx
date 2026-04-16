@@ -1,5 +1,10 @@
 FROM ubuntu:22.04
 
+# PORT=8080 tells Railway to route public traffic to nginx (port 8080).
+# nginx then proxies: /* → EVM (8545), /cosmos/* → REST (1317).
+# Without this, Railway auto-detects 8545 and REST becomes unreachable.
+ENV PORT=8080
+
 RUN apt-get update && apt-get install -y \
     ca-certificates curl wget nginx && \
     rm -rf /var/lib/apt/lists/*
