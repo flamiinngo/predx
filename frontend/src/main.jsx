@@ -93,6 +93,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               "predx-1": ["/minievm.evm.v1.MsgCall"],
             }}
             theme="dark"
+            container={document.body}
           >
             <App />
           </InterwovenKitProvider>
