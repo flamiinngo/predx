@@ -7,14 +7,20 @@ const STEPS = [
     icon: "◈",
     iconColor: "#818cf8",
     title: "Welcome to PredX",
-    body: "The first prediction market with perp DEX mechanics on Initia.\n\nBet HIGHER or LOWER on BTC, ETH, or INIT price — with on-chain stop-loss and take-profit.",
+    body: "The first prediction market with perp DEX mechanics on Initia.\n\nBet HIGHER or LOWER on BTC, ETH, or INIT price — with live odds, on-chain stop-loss, and take-profit.",
   },
   {
-    icon: "⚡",
+    icon: "📈",
+    iconColor: "#10b981",
+    title: "How It Works",
+    body: "Pick a market (BTC, ETH, or INIT) and choose HIGHER or LOWER before the round ends.\n\nOdds move in real time with the price — just like Polymarket. Win and your payout is instant.",
+  },
+  {
+    icon: "🛡️",
     iconColor: "#f59e0b",
-    title: "Auto-Sign: 1-Click Trading",
-    body: "PredX uses Initia's Ghost Wallet technology.\n\nEnable Auto-Sign once → all trades execute silently, no wallet popups. Session expires after your chosen duration.",
-    tag: "Initia Native",
+    title: "Stop-Loss & Take-Profit",
+    body: "PredX is the only prediction market with on-chain SL/TP.\n\nSet a stop-loss and take-profit when you open a position — the keeper bot executes them automatically, no monitoring needed.",
+    tag: "Perp DEX Mechanics",
   },
   {
     icon: "◈",
@@ -24,17 +30,10 @@ const STEPS = [
     tag: "Initia Usernames",
   },
   {
-    icon: "🌉",
-    iconColor: "#3b82f6",
-    title: "Bridge & Earn",
-    body: "Bridge USDC from Ethereum, BNB Chain, or Cosmos via the Interwoven Bridge.\n\nProvide liquidity in the Earn tab to collect protocol fees and INIT VIP rewards.",
-    tag: "Interwoven Bridge",
-  },
-  {
     icon: "🚰",
     iconColor: "#10b981",
     title: "Get Testnet USDC",
-    body: "This is a testnet — use the faucet to get free USDC and start trading. No real money involved.",
+    body: "This is a testnet — claim free USDC and gas from the faucet below to start trading.\n\nFirst trade approves USDC once, then every trade after is 1-click.",
   },
 ];
 

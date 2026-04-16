@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { useWallet }    from "../hooks/useWallet";
-import { useAutosign }  from "../hooks/useAutosign";
 import { calcLiveOdds } from "../hooks/useLiveOdds";
 import { useTick }      from "../hooks/useTick";
-import { useInterwovenKit } from "@initia/interwovenkit-react";
 import {
   useWriteContract,
   useReadContract,
   useAccount,
 } from "wagmi";
-import { parseUnits, maxUint256, encodeFunctionData } from "viem";
+import { parseUnits, maxUint256 } from "viem";
 import "./TradePanel.css";
 
 const PM_ADDRESS   = import.meta.env.VITE_POSITION_MANAGER || "";
@@ -60,9 +58,7 @@ function useAllowance(owner) {
 }
 
 export default function TradePanel({ market, livePrice }) {
-  const { address, username, isConnected, connect, isIwkConnected } = useWallet();
-  const { isEnabled: autoSignOn } = useAutosign();
-  const { requestTxSync, initiaAddress } = useInterwovenKit();
+  const { address, username, isConnected, connect } = useWallet();
   const wagmiAccount = useAccount();
   const effectiveAddress = address || wagmiAccount.address;
 
@@ -137,69 +133,7 @@ export default function TradePanel({ market, livePrice }) {
     const slWei     = sl ? BigInt(Math.round(parseFloat(sl) * 1e18)) : 0n;
     const tpWei     = tp ? BigInt(Math.round(parseFloat(tp) * 1e18)) : 0n;
 
-    // ── Auto-Sign path (InterwovenKit) — zero popups ──────────────────────
-    // Batches approve + openPosition into a single Cosmos tx, signed silently
-    // by the Ghost Wallet when Auto-Sign is enabled for /minievm.evm.v1.MsgCall.
-    // Uses EncodeObject format with typeUrl + camelCase value fields (CosmJS).
-    if (isIwkConnected && autoSignOn && requestTxSync && initiaAddress) {
-      try {
-        setStep("trading");
-        const msgs = [];
-
-        // Approve USDC if allowance is insufficient (batched into same tx)
-        if (allowance < sizeUnits) {
-          msgs.push({
-            typeUrl: "/minievm.evm.v1.MsgCall",
-            value: {
-              sender:       initiaAddress,
-              contractAddr: USDC_ADDRESS,
-              input: encodeFunctionData({
-                abi: USDC_ABI, functionName: "approve",
-                args: [PM_ADDRESS, maxUint256],
-              }),
-              value:      "0",
-              accessList: [],
-              authList:   [],
-            },
-          });
-        }
-
-        // openPosition
-        msgs.push({
-          typeUrl: "/minievm.evm.v1.MsgCall",
-          value: {
-            sender:       initiaAddress,
-            contractAddr: PM_ADDRESS,
-            input: encodeFunctionData({
-              abi: PM_ABI, functionName: "openPosition",
-              args: [marketId, dir === "higher", sizeUnits, slWei, tpWei],
-            }),
-            value:      "0",
-            accessList: [],
-            authList:   [],
-          },
-        });
-
-        // requestTxSync returns Promise<string> — the tx hash directly
-        const hash = await requestTxSync({ chainId: "predx-1", messages: msgs });
-        setTxHash(typeof hash === "string" ? hash : "confirmed");
-        setStep("done");
-        setSize(""); setSl(""); setTp("");
-      } catch (err) {
-        let msg = err?.message || "Transaction failed";
-        if (msg.includes("expired") || msg.includes("settled"))
-          msg = "Market expired — next one opens in seconds";
-        else if (msg.includes("insufficient") || msg.includes("ERC20"))
-          msg = "Insufficient USDC — claim from faucet";
-        else
-          msg = msg.slice(0, 90);
-        setErrMsg(msg);
-        setStep("error");
-      }
-      return;
-    }
-
-    // ── MetaMask / wagmi fallback path ────────────────────────────────────
+    // ── EVM wallet path (Rabby / MetaMask / any injected wallet) ─────────
     if (window.ethereum) {
       try {
         const chainHex = "0x" + (674323531314972).toString(16);
@@ -261,7 +195,6 @@ export default function TradePanel({ market, livePrice }) {
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <span className="tp-name">{market.symbol}/USDC</span>
           <span className="tp-badge">{market.timeframe}</span>
-          {autoSignOn && <span className="tp-autosign-tag">⚡ Auto</span>}
         </div>
         <div style={{ textAlign:"right" }}>
           <div className="tp-price">{fmt(price)}</div>
@@ -427,8 +360,6 @@ export default function TradePanel({ market, livePrice }) {
               <span className="tp-spinner" />
               {step === "approving" ? "Approving USDC..." : "Submitting..."}
             </span>
-          ) : isIwkConnected && autoSignOn ? (
-            `⚡ ${dir==="higher"?"▲":"▼"} ${dir.toUpperCase()} ${market.symbol} · ${multiplier.toFixed(2)}x`
           ) : (
             `${dir==="higher"?"▲":"▼"} ${dir.toUpperCase()} ${market.symbol} · ${multiplier.toFixed(2)}x · ${yourLiveOdds.toFixed(0)}% likely`
           )}
@@ -436,10 +367,7 @@ export default function TradePanel({ market, livePrice }) {
       )}
 
       <div className="tp-foot">
-        Powered by Initia · predx-1 ·{" "}
-        {autoSignOn
-          ? <span style={{color:"#818cf8"}}>⚡ 1-click active</span>
-          : "settled on-chain"}
+        Powered by Initia · predx-1 · settled on-chain
       </div>
     </div>
   );

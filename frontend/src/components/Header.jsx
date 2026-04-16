@@ -1,31 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { useWallet }   from "../hooks/useWallet";
-import { useAutosign } from "../hooks/useAutosign";
+import { useWallet }    from "../hooks/useWallet";
 import { useLivePrices } from "../hooks/useLivePrices";
 import "./Header.css";
 
-// Auto-sign toggle button
-function AutoSignBadge({ onDeposit }) {
-  const { isEnabled, isLoading, toggle, expiryLabel } = useAutosign();
-  const { isConnected } = useWallet();
-  if (!isConnected) return null;
-
-  return (
-    <button
-      className={`autosign-btn ${isEnabled ? "enabled" : "disabled"}`}
-      onClick={toggle}
-      disabled={isLoading}
-      title={isEnabled ? `Auto-sign active · ${expiryLabel || ""}` : "Enable 1-click trading"}
-    >
-      <span className={`as-dot ${isEnabled ? "on" : "off"}`} />
-      {isLoading ? "..." : isEnabled ? (
-        <>⚡ Auto-Sign <span className="as-tag">ON</span></>
-      ) : (
-        <>⚡ Auto-Sign</>
-      )}
-    </button>
-  );
-}
 
 // Wallet connect / profile button
 function WalletButton() {
@@ -175,7 +152,6 @@ export default function Header({ onDeposit, activePage, setPage }) {
 
       {/* Actions */}
       <div className="header-actions">
-        <AutoSignBadge />
         <button className="btn-deposit" onClick={onDeposit}>+ Deposit</button>
         <WalletButton />
       </div>
