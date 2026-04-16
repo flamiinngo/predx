@@ -1,24 +1,64 @@
 import { useState, useEffect, useRef } from "react";
+import { ethers } from "ethers";
 import { useWallet }   from "../hooks/useWallet";
 import { useAutosign } from "../hooks/useAutosign";
 import { useLivePrices } from "../hooks/useLivePrices";
 import "./Header.css";
 
+const RPC_URL    = import.meta.env.VITE_RPC_URL    || "http://localhost:8545";
+const SEEDER_KEY = import.meta.env.VITE_SEEDER_KEY || "";
+const GAS_DRIP   = ethers.parseEther("0.05"); // 0.05 GAS — enough for authz + feegrant + many trades
+const GAS_MIN    = ethers.parseEther("0.01"); // fund if below this threshold
+
+async function ensureGasBalance(address) {
+  if (!SEEDER_KEY || !address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return;
+  try {
+    const network  = new ethers.Network("predx-1", 674323531314972);
+    const provider = new ethers.JsonRpcProvider(RPC_URL, network, { staticNetwork: network });
+    const bal      = await provider.getBalance(address);
+    if (bal >= GAS_MIN) return; // already funded
+    const seeder = new ethers.Wallet(SEEDER_KEY, provider);
+    const tx = await seeder.sendTransaction({ to: address, value: GAS_DRIP });
+    await tx.wait();
+  } catch {
+    // Non-fatal — proceed with enable attempt anyway
+  }
+}
+
 // Auto-sign toggle button
 function AutoSignBadge({ onDeposit }) {
-  const { isEnabled, isLoading, toggle, expiryLabel } = useAutosign();
-  const { isConnected } = useWallet();
+  const { isEnabled, isLoading, enable, disable, expiryLabel } = useAutosign();
+  const { isConnected, address } = useWallet();
+  const [funding, setFunding] = useState(false);
+
   if (!isConnected) return null;
+
+  const handleToggle = async () => {
+    if (isEnabled) {
+      disable();
+      return;
+    }
+    // Fund GAS before enabling so authz/feegrant broadcast doesn't fail
+    setFunding(true);
+    try {
+      await ensureGasBalance(address);
+    } finally {
+      setFunding(false);
+    }
+    enable();
+  };
+
+  const busy = isLoading || funding;
 
   return (
     <button
       className={`autosign-btn ${isEnabled ? "enabled" : "disabled"}`}
-      onClick={toggle}
-      disabled={isLoading}
+      onClick={handleToggle}
+      disabled={busy}
       title={isEnabled ? `Auto-sign active · ${expiryLabel || ""}` : "Enable 1-click trading"}
     >
       <span className={`as-dot ${isEnabled ? "on" : "off"}`} />
-      {isLoading ? "..." : isEnabled ? (
+      {funding ? "Funding gas..." : isLoading ? "..." : isEnabled ? (
         <>⚡ Auto-Sign <span className="as-tag">ON</span></>
       ) : (
         <>⚡ Auto-Sign</>
