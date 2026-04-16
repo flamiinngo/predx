@@ -3,12 +3,13 @@ import { useWallet }    from "../hooks/useWallet";
 import { useAutosign }  from "../hooks/useAutosign";
 import { calcLiveOdds } from "../hooks/useLiveOdds";
 import { useTick }      from "../hooks/useTick";
+import { useInterwovenKit } from "@initia/interwovenkit-react";
 import {
   useWriteContract,
   useReadContract,
   useAccount,
 } from "wagmi";
-import { parseUnits, maxUint256 } from "viem";
+import { parseUnits, maxUint256, encodeFunctionData } from "viem";
 import "./TradePanel.css";
 
 const PM_ADDRESS   = import.meta.env.VITE_POSITION_MANAGER || "";
@@ -59,8 +60,9 @@ function useAllowance(owner) {
 }
 
 export default function TradePanel({ market, livePrice }) {
-  const { address, username, isConnected, connect } = useWallet();
+  const { address, username, isConnected, connect, isIwkConnected } = useWallet();
   const { isEnabled: autoSignOn } = useAutosign();
+  const { requestTxSync, initiaAddress } = useInterwovenKit();
   const wagmiAccount = useAccount();
   const effectiveAddress = address || wagmiAccount.address;
 
@@ -131,6 +133,66 @@ export default function TradePanel({ market, livePrice }) {
 
     setErrMsg(null); setTxHash(null);
 
+    const sizeUnits = parseUnits(size, 6);
+    const slWei     = sl ? BigInt(Math.round(parseFloat(sl) * 1e18)) : 0n;
+    const tpWei     = tp ? BigInt(Math.round(parseFloat(tp) * 1e18)) : 0n;
+
+    // ── Auto-Sign path (InterwovenKit) — zero popups ──────────────────────
+    // Batches approve + openPosition into a single Cosmos tx, signed silently
+    // by the Ghost Wallet when Auto-Sign is enabled for /minievm.evm.v1.MsgCall.
+    if (isIwkConnected && autoSignOn && requestTxSync && initiaAddress) {
+      try {
+        setStep("trading");
+        const msgs = [];
+
+        // Approve USDC if allowance is insufficient (batched into same tx)
+        if (allowance < sizeUnits) {
+          msgs.push({
+            "@type": "/minievm.evm.v1.MsgCall",
+            sender:        initiaAddress,
+            contract_addr: USDC_ADDRESS,
+            input: encodeFunctionData({
+              abi: USDC_ABI, functionName: "approve",
+              args: [PM_ADDRESS, maxUint256],
+            }),
+            value:       "0",
+            access_list: [],
+          });
+        }
+
+        // openPosition
+        msgs.push({
+          "@type": "/minievm.evm.v1.MsgCall",
+          sender:        initiaAddress,
+          contract_addr: PM_ADDRESS,
+          input: encodeFunctionData({
+            abi: PM_ABI, functionName: "openPosition",
+            args: [marketId, dir === "higher", sizeUnits, slWei, tpWei],
+          }),
+          value:       "0",
+          access_list: [],
+        });
+
+        const result = await requestTxSync({ chain_id: "predx-1", messages: msgs });
+        const hash   = result?.txhash || result?.tx_hash || result?.hash || "confirmed";
+        setTxHash(hash);
+        setStep("done");
+        setSize(""); setSl(""); setTp("");
+      } catch (err) {
+        let msg = err?.message || "Transaction failed";
+        if (msg.includes("expired") || msg.includes("settled"))
+          msg = "Market expired — next one opens in seconds";
+        else if (msg.includes("insufficient") || msg.includes("ERC20"))
+          msg = "Insufficient USDC — claim from faucet";
+        else
+          msg = msg.slice(0, 90);
+        setErrMsg(msg);
+        setStep("error");
+      }
+      return;
+    }
+
+    // ── MetaMask / wagmi fallback path ────────────────────────────────────
     if (window.ethereum) {
       try {
         const chainHex = "0x" + (674323531314972).toString(16);
@@ -150,10 +212,6 @@ export default function TradePanel({ market, livePrice }) {
     }
 
     try {
-      const sizeUnits = parseUnits(size, 6);
-      const slWei  = sl ? BigInt(Math.round(parseFloat(sl) * 1e18)) : 0n;
-      const tpWei  = tp ? BigInt(Math.round(parseFloat(tp) * 1e18)) : 0n;
-
       if (allowance < sizeUnits) {
         setStep("approving");
         await writeContractAsync({
@@ -362,6 +420,8 @@ export default function TradePanel({ market, livePrice }) {
               <span className="tp-spinner" />
               {step === "approving" ? "Approving USDC..." : "Submitting..."}
             </span>
+          ) : isIwkConnected && autoSignOn ? (
+            `⚡ ${dir==="higher"?"▲":"▼"} ${dir.toUpperCase()} ${market.symbol} · ${multiplier.toFixed(2)}x`
           ) : (
             `${dir==="higher"?"▲":"▼"} ${dir.toUpperCase()} ${market.symbol} · ${multiplier.toFixed(2)}x · ${yourLiveOdds.toFixed(0)}% likely`
           )}
