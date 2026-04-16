@@ -7,4 +7,7 @@ export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom"],
   },
+  preview: {
+    allowedHosts: ["predx.up.railway.app"],
+  },
 });
