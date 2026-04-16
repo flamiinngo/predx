@@ -92,6 +92,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             enableAutoSign={{
               "predx-1": ["/minievm.evm.v1.MsgCall"],
             }}
+            autoSignFeePolicy={{
+              "predx-1": {
+                allowedFeeDenoms: ["GAS"],
+                gasMultiplier: 1.5,
+              },
+            }}
             theme="dark"
             container={document.body}
           >
