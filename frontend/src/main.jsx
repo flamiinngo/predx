@@ -24,16 +24,16 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// PredX Cosmos REST base URL — served through nginx /cosmos/ proxy on the chain domain.
-// After the chain Dockerfile nginx update, /cosmos/* routes to port 1317 (Cosmos REST).
-const CHAIN_RPC_URL  = import.meta.env.VITE_RPC_URL  || "http://localhost:8080";
-const CHAIN_REST_URL = CHAIN_RPC_URL.replace(/\/$/, "") + "/cosmos";
+// nginx on the chain service exposes 3 paths on port 8080:
+//   /rpc/*  → CometBFT RPC on :26657  (IWK StargateClient / CosmJS)
+//   /rest/* → Cosmos gRPC-gateway REST on :1317  (IWK authz/feegrant broadcast)
+//   /*      → EVM JSON-RPC on :8545   (wagmi / ethers trades)
+const BASE_URL       = import.meta.env.VITE_RPC_URL  || "http://localhost:8080";
+const CHAIN_RPC_URL  = BASE_URL.replace(/\/$/, "");
+const CHAIN_REST_URL = CHAIN_RPC_URL + "/rest";
+const CHAIN_CMT_URL  = CHAIN_RPC_URL + "/rpc";
 
 // InterwovenKit customChain config for predx-1.
-// Registers our Railway-hosted minitia EVM rollup so IWK can:
-//   1. Resolve addresses on the chain
-//   2. Submit authz + feegrant for Auto-Sign via the Cosmos REST API
-//   3. Broadcast MsgCall transactions via the json-rpc endpoint
 const predxIwkChain = {
   chain_id:      "predx-1",
   chain_name:    "predx",
@@ -41,13 +41,10 @@ const predxIwkChain = {
   bech32_prefix: "init",
   logo_URIs:     { png: "" },
   apis: {
-    // IWK requires non-empty arrays — provide chain URL for all endpoints.
-    // Tendermint RPC (26657) is internal-only; pointing to the same host
-    // is harmless (auto-sign only uses REST + json-rpc).
-    rpc:        [{ address: CHAIN_RPC_URL }],
-    rest:       [{ address: CHAIN_REST_URL }],
-    "json-rpc": [{ address: CHAIN_RPC_URL }],
-    indexer:    [{ address: CHAIN_RPC_URL }],
+    rpc:        [{ address: CHAIN_CMT_URL  }],   // CometBFT RPC (26657 via /rpc/)
+    rest:       [{ address: CHAIN_REST_URL }],   // Cosmos REST  (1317  via /rest/)
+    "json-rpc": [{ address: CHAIN_RPC_URL  }],   // EVM JSON-RPC (8545  via /)
+    indexer:    [{ address: CHAIN_RPC_URL  }],
   },
   metadata: { minitia: { type: "minievm" } },
 };
