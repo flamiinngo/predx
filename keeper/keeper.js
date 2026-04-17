@@ -67,7 +67,6 @@ const settlement = new ethers.Contract(SETTLEMENT_ADDR, SETTLEMENT_ABI, wallet);
 const factory    = new ethers.Contract(FACTORY_ADDR,    FACTORY_ABI,    wallet);
 const sltp       = new ethers.Contract(SLTP_ADDR,       SLTP_ABI,       wallet);
 const pm         = new ethers.Contract(PM_ADDR,         PM_ABI,         wallet);
-const pm   = new ethers.Contract(PM_ADDR,         PM_ABI,         seederWallet);
 const usdcSeeder = new ethers.Contract(USDC_ADDR,       USDC_ABI,       seederWallet);
 const usdc       = new ethers.Contract(USDC_ADDR,       USDC_ABI,       wallet);
 const vault      = VAULT_ADDR ? new ethers.Contract(VAULT_ADDR, VAULT_ABI, seederWallet) : null;
