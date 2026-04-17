@@ -24,7 +24,6 @@ const FACTORY_ABI = [
   "function getActiveMarketId(string symbol, uint8 tf) external view returns (uint256)",
   "function getMarket(uint256 id) external view returns (tuple(uint256 id,string symbol,uint8 timeframe,uint256 startTime,uint256 endTime,uint256 strikePrice,bool settled,bool higherWon,uint256 totalHigher,uint256 totalLower))",
   "function getHigherProbability(uint256 marketId) external view returns (uint256 bps)",
-  "function getMarket(uint256 id) external view returns (tuple(uint256 id,string symbol,uint8 timeframe,uint256 startTime,uint256 endTime,uint256 strikePrice,bool settled,bool higherWon,uint256 totalHigher,uint256 totalLower))",
 ];
 const ORACLE_ABI = [
   "function updatePrices(uint256,uint256,uint256) external",
@@ -77,22 +76,40 @@ const TF_LABELS  = ["1min", "5min", "15min"]; // indexed by timeframe enum value
 
 // Ensure keeper has infinite USDC approval for seeding
 async function ensureApproval() {
-  // Keeper wallet has $99M USDC already — approve it for PM directly.
-  // (Seeder wallet mint was failing because it lacks mint permission.)
-  const keeperAllowance = await usdc.allowance(wallet.address, PM_ADDR);
-  if (keeperAllowance < ethers.parseUnits("1000000", 6)) {
-    console.log("[SEED] Approving keeper USDC → PM...");
-    const tx = await usdc.approve(PM_ADDR, ethers.MaxUint256, { gasLimit: 100_000 });
-    await tx.wait();
-    console.log("[SEED] ✓ Keeper USDC approved for PM.");
-  }
-  // Also approve vault for LP deposits
-  if (vault) {
-    const vaultAllowance = await usdcSeeder.allowance(SEEDER_ADDR, VAULT_ADDR);
-    if (vaultAllowance < ethers.parseUnits("1000000", 6)) {
-      const tx = await usdcSeeder.approve(VAULT_ADDR, ethers.MaxUint256, { gasLimit: 100_000 });
+  try {
+    // Mint USDC to keeper in case balance is low (MockUSDC has no access control on mint)
+    const keeperBal = await usdc.balanceOf(wallet.address);
+    if (keeperBal < ethers.parseUnits("10000", 6)) {
+      console.log("[SEED] Minting USDC to keeper...");
+      const mintTx = await usdc.mint(wallet.address, ethers.parseUnits("10000000", 6), { gasLimit: 500_000 });
+      await mintTx.wait();
+      console.log("[SEED] ✓ Minted 10M USDC to keeper.");
+    }
+
+    const keeperAllowance = await usdc.allowance(wallet.address, PM_ADDR);
+    if (keeperAllowance < ethers.parseUnits("1000000", 6)) {
+      console.log("[SEED] Approving keeper USDC → PM...");
+      const tx = await usdc.approve(PM_ADDR, ethers.MaxUint256, { gasLimit: 500_000 });
       await tx.wait();
-      console.log("[SEED] Approved USDC for vault deposits.");
+      console.log("[SEED] ✓ Keeper USDC approved for PM.");
+    } else {
+      console.log(`[SEED] Keeper allowance OK (${ethers.formatUnits(keeperAllowance, 6)} USDC)`);
+    }
+  } catch (err) {
+    console.error("[SEED] ensureApproval failed (non-fatal):", err.message?.slice(0, 200));
+  }
+
+  // Also approve vault for LP deposits (seeder wallet)
+  if (vault) {
+    try {
+      const vaultAllowance = await usdcSeeder.allowance(SEEDER_ADDR, VAULT_ADDR);
+      if (vaultAllowance < ethers.parseUnits("1000000", 6)) {
+        const tx = await usdcSeeder.approve(VAULT_ADDR, ethers.MaxUint256, { gasLimit: 500_000 });
+        await tx.wait();
+        console.log("[SEED] Approved USDC for vault deposits.");
+      }
+    } catch (err) {
+      console.error("[SEED] Vault approval failed (non-fatal):", err.message?.slice(0, 120));
     }
   }
 }
@@ -103,29 +120,41 @@ async function ensureApproval() {
 const VAULT_MIN_BALANCE = ethers.parseUnits("5000", 6);  // $5,000 minimum
 const VAULT_TOP_UP      = ethers.parseUnits("10000", 6); // top up to $10,000
 
+// vault contract connected to keeper wallet for deposits
+const vaultKeeper = VAULT_ADDR ? new ethers.Contract(VAULT_ADDR, VAULT_ABI, wallet) : null;
+
 async function fundVault() {
-  if (!vault || !VAULT_ADDR) return;
+  if (!vaultKeeper || !VAULT_ADDR) return;
   try {
-    const bal = await usdcSeeder.balanceOf(VAULT_ADDR);
+    const bal = await usdc.balanceOf(VAULT_ADDR);
     if (bal >= VAULT_MIN_BALANCE) {
       console.log(`[VAULT] Balance $${(Number(bal)/1e6).toFixed(0)} — OK`);
       return;
     }
     const needed = VAULT_TOP_UP - bal;
-    console.log(`[VAULT] Low balance $${(Number(bal)/1e6).toFixed(0)} — depositing $${(Number(needed)/1e6).toFixed(0)} USDC...`);
-    // Mint if seeder doesn't have enough
-    const seederBal = await usdcSeeder.balanceOf(SEEDER_ADDR);
-    if (seederBal < needed) {
-      const mintTx = await usdcSeeder.mint(SEEDER_ADDR, needed, { gasLimit: 150_000 });
+    console.log(`[VAULT] Low balance $${(Number(bal)/1e6).toFixed(0)} — depositing $${(Number(needed)/1e6).toFixed(0)} USDC from keeper...`);
+
+    // Ensure keeper has enough USDC (mint if needed — MockUSDC has no access control)
+    const keeperBal = await usdc.balanceOf(wallet.address);
+    if (keeperBal < needed) {
+      const mintTx = await usdc.mint(wallet.address, needed * 10n, { gasLimit: 500_000 });
       await mintTx.wait();
-      console.log(`[VAULT] Minted $${(Number(needed)/1e6).toFixed(0)} USDC for seeder`);
+      console.log(`[VAULT] Minted USDC to keeper for vault`);
     }
-    const tx = await vault.deposit(needed, { gasLimit: 300_000 });
+
+    // Approve vault to pull from keeper if needed
+    const vaultAllow = await usdc.allowance(wallet.address, VAULT_ADDR);
+    if (vaultAllow < needed) {
+      const approveTx = await usdc.approve(VAULT_ADDR, ethers.MaxUint256, { gasLimit: 500_000 });
+      await approveTx.wait();
+    }
+
+    const tx = await vaultKeeper.deposit(needed, { gasLimit: 300_000 });
     await tx.wait();
-    const newBal = await usdcSeeder.balanceOf(VAULT_ADDR);
+    const newBal = await usdc.balanceOf(VAULT_ADDR);
     console.log(`[VAULT] ✓ Funded — vault balance now $${(Number(newBal)/1e6).toFixed(0)} USDC`);
   } catch (err) {
-    console.error("[VAULT] Fund failed:", err.message?.slice(0, 120));
+    console.error("[VAULT] Fund failed:", err.message?.slice(0, 200));
   }
 }
 
@@ -372,7 +401,7 @@ async function run() {
   await wireNativeOracle();
 
   await ensureApproval();
-  await fundVault();  // ensure vault has enough USDC before any settlement
+  await fundVault();   // ensure vault has enough USDC before any settlement
 
   let tick    = 0;
   let running = false;  // prevent concurrent ticks causing nonce collisions
