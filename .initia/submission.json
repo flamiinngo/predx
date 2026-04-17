@@ -1,7 +1,7 @@
 {
   "project_name": "PredX",
   "repo_url": "https://github.com/flamiinngo/predx",
-  "commit_sha": "86fc692d8ad92a14c58d208ac9c078e951bb9982",
+  "commit_sha": "ff51e454e71664cb62ffd1fbf1fc841ecc959aa1",
   "rollup_chain_id": "predx-1",
   "deployed_address": "0x8eed12fbe5059d29d79ee697b44f435fa8f75449",
   "vm": "evm",
@@ -32,5 +32,5 @@
     "onboarding":           "frontend/src/components/OnboardingModal.jsx",
     "trade_panel":          "frontend/src/components/TradePanel.jsx"
   },
-  "demo_video_url": "FILL_WITH_LOOM_OR_YOUTUBE_URL"
+  "demo_video_url": "https://youtu.be/ZM1Q7FQ0VyE?si=ds7LQv_8-2aOOfAi"
 }
