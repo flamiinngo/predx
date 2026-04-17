@@ -1,9 +1,11 @@
 FROM ubuntu:22.04
 
-# PORT=8080 tells Railway to route public traffic to nginx (port 8080).
-# nginx then proxies: /* → EVM (8545), /cosmos/* → REST (1317).
-# Without this, Railway auto-detects 8545 and REST becomes unreachable.
-ENV PORT=8080
+# Railway routes to port 8545 (configured in Railway service settings).
+# nginx listens on 8545 and proxies internally:
+#   /*      → EVM JSON-RPC on :18545
+#   /rest/* → Cosmos REST on :1317
+#   /rpc/*  → CometBFT RPC on :26657
+ENV PORT=8545
 
 RUN apt-get update && apt-get install -y \
     ca-certificates curl wget nginx && \
@@ -19,14 +21,16 @@ RUN wget -q https://github.com/initia-labs/minievm/releases/download/v1.2.15/min
 # Copy pre-initialized chain state (genesis + all deployed contracts baked in)
 COPY minitia_home /root/.minitia
 
-# Ensure CORS is enabled for frontend access
-RUN sed -i 's/enable-unsafe-cors = false/enable-unsafe-cors = true/g' /root/.minitia/config/app.toml && \
+# Move EVM JSON-RPC to internal port 18545 so nginx can own port 8545.
+# Enable CORS for all APIs.
+RUN sed -i 's|address = "0.0.0.0:8545"|address = "127.0.0.1:18545"|g' /root/.minitia/config/app.toml && \
+    sed -i 's/enable-unsafe-cors = false/enable-unsafe-cors = true/g' /root/.minitia/config/app.toml && \
     sed -i 's/enabled-unsafe-cors = false/enabled-unsafe-cors = true/g' /root/.minitia/config/app.toml
 
-# nginx proxy on port 8080:
-#   /cosmos/* → Cosmos REST on :1317 (strips /cosmos prefix)
-#   /*        → EVM JSON-RPC on :8545
-# This lets Railway expose a single port while serving both APIs.
+# nginx on port 8545 (Railway's routed port):
+#   /*      → EVM JSON-RPC on :18545
+#   /rest/* → Cosmos REST on :1317
+#   /rpc/*  → CometBFT RPC on :26657
 COPY nginx.conf /etc/nginx/sites-available/predx
 RUN rm -f /etc/nginx/sites-enabled/default && \
     ln -s /etc/nginx/sites-available/predx /etc/nginx/sites-enabled/predx
@@ -36,10 +40,10 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
 RUN printf '#!/bin/sh\nnginx\nexec minitiad start --home /root/.minitia\n' > /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 
-# 8080 = nginx proxy (Railway routes here)
-# 8545 = EVM JSON-RPC (internal only after nginx)
-# 1317 = Cosmos REST (internal only after nginx)
-# 26657 = CometBFT RPC (internal)
-EXPOSE 8080 8545 1317 26657
+# 8545  = nginx proxy (Railway routes here — public)
+# 18545 = EVM JSON-RPC (internal only, nginx proxies /*)
+# 1317  = Cosmos REST (internal only, nginx proxies /rest/*)
+# 26657 = CometBFT RPC (internal only, nginx proxies /rpc/*)
+EXPOSE 8545 18545 1317 26657
 
 CMD ["/usr/local/bin/start.sh"]
