@@ -56,7 +56,8 @@ const VAULT_ABI = [
 const VAULT_ADDR = process.env.VAULT_ADDRESS || "";
 
 const provider      = new ethers.JsonRpcProvider(RPC_URL);
-const wallet        = new ethers.Wallet(PRIVATE_KEY, provider);
+const _walletBase   = new ethers.Wallet(PRIVATE_KEY, provider);
+const wallet        = new ethers.NonceManager(_walletBase);
 const SEEDER_KEY    = process.env.SEEDER_KEY || PRIVATE_KEY;
 const _seederBase   = new ethers.Wallet(SEEDER_KEY, provider);
 const seederWallet  = new ethers.NonceManager(_seederBase);
