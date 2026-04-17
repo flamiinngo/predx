@@ -132,7 +132,7 @@ function WalletButton() {
                         chainId: chainHex,
                         chainName: "PredX (predx-1)",
                         nativeCurrency: { name: "GAS", symbol: "GAS", decimals: 18 },
-                        rpcUrls: ["http://localhost:8545"],
+                        rpcUrls: [import.meta.env.VITE_RPC_URL || "http://localhost:8545"],
                       }],
                     });
                   }
