@@ -40,6 +40,20 @@ const predxIwkChain = {
   pretty_name:   "PredX",
   bech32_prefix: "init",
   logo_URIs:     { png: "" },
+  fees: {
+    fee_tokens: [
+      {
+        denom:                "GAS",
+        fixed_min_gas_price:  0,
+        low_gas_price:        0,
+        average_gas_price:    0.02,
+        high_gas_price:       0.04,
+      },
+    ],
+  },
+  staking: {
+    staking_tokens: [{ denom: "GAS" }],
+  },
   apis: {
     rpc:        [{ address: CHAIN_CMT_URL  }],   // CometBFT RPC (26657 via /rpc/)
     rest:       [{ address: CHAIN_REST_URL }],   // Cosmos REST  (1317  via /rest/)
