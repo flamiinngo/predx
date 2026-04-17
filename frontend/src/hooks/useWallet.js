@@ -1,6 +1,7 @@
 import { useInterwovenKit } from "@initia/interwovenkit-react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { useUsername } from "./useUsername";
 
 /**
  * Unified wallet hook.
@@ -22,7 +23,11 @@ export function useWallet() {
   // Always use the hex EVM address for on-chain operations
   const evmAddress  = iwk.hexAddress || wagmiAccount.address || null;
   const isConnected = iwk.isConnected || wagmiAccount.isConnected || false;
-  const username    = iwk.username || null;
+
+  // iwk.username uses hex internally on MiniEVM chains → always null.
+  // Query with initiaAddress (bech32) so InitiaAddress.validate() passes.
+  const { username: resolvedUsername } = useUsername(iwk.initiaAddress || null);
+  const username = resolvedUsername || null;
 
   // isIwkConnected: true when IWK has a connected wallet (Keplr/Leap/Initia)
   // OR when wagmi is connected AND the addresses match (same Keplr key imported to both)

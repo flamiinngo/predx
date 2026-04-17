@@ -1,12 +1,12 @@
 import { useLeaderboard } from "../hooks/useLeaderboard";
-import { useUsernameQuery } from "@initia/interwovenkit-react";
+import { useUsername } from "../hooks/useUsername";
 import "./Leaderboard.css";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-// Resolves .init username for one address
+// Resolves .init username for one address (hex or bech32)
 function TraderName({ address }) {
-  const { data: username } = useUsernameQuery(address);
+  const { username } = useUsername(address);
   const display = username || `${address.slice(0, 6)}...${address.slice(-4)}`;
   const isInit  = !!username;
   return (

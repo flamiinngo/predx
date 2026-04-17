@@ -1,15 +1,32 @@
 import { useUsernameQuery } from "@initia/interwovenkit-react";
+import { toBech32, fromHex } from "@cosmjs/encoding";
 
 /**
- * Resolves a .init username for any address.
+ * Converts any address to init1... bech32 format so InitiaAddress.validate()
+ * accepts it and the username registry query succeeds.
+ * Already-bech32 addresses are returned unchanged.
+ */
+function toInitBech32(address) {
+  if (!address) return null;
+  if (address.startsWith("init1")) return address;
+  if (address.startsWith("0x") || address.startsWith("0X")) {
+    try {
+      return toBech32("init", fromHex(address.slice(2)));
+    } catch {
+      return null;
+    }
+  }
+  return address;
+}
+
+/**
+ * Resolves a .init username for any address (hex or bech32).
  * Uses InterwovenKit's built-in hook which queries Initia L1.
  * Returns: "wolf.init" | null | undefined (undefined while loading)
- *
- * For the connected wallet's own username, use kit.username directly
- * from useInterwovenKit() — it's already resolved.
  */
 export function useUsername(address) {
-  const { data: username, isLoading } = useUsernameQuery(address);
+  const initAddress = toInitBech32(address);
+  const { data: username, isLoading } = useUsernameQuery(initAddress ?? undefined);
   return { username: username ?? null, isLoading };
 }
 
