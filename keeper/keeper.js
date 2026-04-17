@@ -67,7 +67,7 @@ const settlement = new ethers.Contract(SETTLEMENT_ADDR, SETTLEMENT_ABI, wallet);
 const factory    = new ethers.Contract(FACTORY_ADDR,    FACTORY_ABI,    wallet);
 const sltp       = new ethers.Contract(SLTP_ADDR,       SLTP_ABI,       wallet);
 const pm         = new ethers.Contract(PM_ADDR,         PM_ABI,         wallet);
-const pmSeeder   = new ethers.Contract(PM_ADDR,         PM_ABI,         seederWallet);
+const pm   = new ethers.Contract(PM_ADDR,         PM_ABI,         seederWallet);
 const usdcSeeder = new ethers.Contract(USDC_ADDR,       USDC_ABI,       seederWallet);
 const usdc       = new ethers.Contract(USDC_ADDR,       USDC_ABI,       wallet);
 const vault      = VAULT_ADDR ? new ethers.Contract(VAULT_ADDR, VAULT_ABI, seederWallet) : null;
@@ -78,27 +78,20 @@ const TF_LABELS  = ["1min", "5min", "15min"]; // indexed by timeframe enum value
 
 // Ensure keeper has infinite USDC approval for seeding
 async function ensureApproval() {
-  // Mint USDC for seeder if balance is low
-  const seederBal = await usdcSeeder.balanceOf(SEEDER_ADDR);
-  if (seederBal < ethers.parseUnits("50000", 6)) {
-    console.log(`[SEED] Seeder balance low ($${(Number(seederBal)/1e6).toFixed(0)}) — minting $100,000 USDC...`);
-    const mintTx = await usdcSeeder.mint(SEEDER_ADDR, ethers.parseUnits("100000", 6), { gasLimit: 150_000 });
-    await mintTx.wait();
-    console.log("[SEED] Minted $100,000 USDC for seeder.");
-  }
-
-  const allowance = await usdcSeeder.allowance(SEEDER_ADDR, PM_ADDR);
-  if (allowance < ethers.parseUnits("1000000", 6)) {
-    console.log("[SEED] Approving USDC for seeder → PM...");
-    const tx = await usdcSeeder.approve(PM_ADDR, ethers.MaxUint256);
+  // Keeper wallet has $99M USDC already — approve it for PM directly.
+  // (Seeder wallet mint was failing because it lacks mint permission.)
+  const keeperAllowance = await usdc.allowance(wallet.address, PM_ADDR);
+  if (keeperAllowance < ethers.parseUnits("1000000", 6)) {
+    console.log("[SEED] Approving keeper USDC → PM...");
+    const tx = await usdc.approve(PM_ADDR, ethers.MaxUint256, { gasLimit: 100_000 });
     await tx.wait();
-    console.log("[SEED] Approved.");
+    console.log("[SEED] ✓ Keeper USDC approved for PM.");
   }
   // Also approve vault for LP deposits
   if (vault) {
     const vaultAllowance = await usdcSeeder.allowance(SEEDER_ADDR, VAULT_ADDR);
     if (vaultAllowance < ethers.parseUnits("1000000", 6)) {
-      const tx = await usdcSeeder.approve(VAULT_ADDR, ethers.MaxUint256);
+      const tx = await usdcSeeder.approve(VAULT_ADDR, ethers.MaxUint256, { gasLimit: 100_000 });
       await tx.wait();
       console.log("[SEED] Approved USDC for vault deposits.");
     }
@@ -149,9 +142,9 @@ async function seedMarket(marketId, symbol) {
     if (totalPool === 0) {
       const sizeH = BigInt((Math.floor(Math.random() * 100) + 150) * 1_000_000);
       const sizeL = BigInt((Math.floor(Math.random() * 100) + 150) * 1_000_000);
-      const tx1 = await pmSeeder.openPosition(marketId, true,  sizeH, 0n, 0n, { gasLimit: 500_000 });
+      const tx1 = await pm.openPosition(marketId, true,  sizeH, 0n, 0n, { gasLimit: 500_000 });
       await tx1.wait();
-      const tx2 = await pmSeeder.openPosition(marketId, false, sizeL, 0n, 0n, { gasLimit: 500_000 });
+      const tx2 = await pm.openPosition(marketId, false, sizeL, 0n, 0n, { gasLimit: 500_000 });
       await tx2.wait();
       console.log(`[SEED] ${symbol} market ${marketId} — bootstrapped $${sizeH/1000000n} HIGHER + $${sizeL/1000000n} LOWER`);
       return;
@@ -161,13 +154,13 @@ async function seedMarket(marketId, symbol) {
     if (higher > 7500) {
       // Too many HIGHER — add LOWER to rebalance
       const randomSize = BigInt((Math.floor(Math.random() * 50) + 50) * 1_000_000);
-      const tx = await pmSeeder.openPosition(marketId, false, randomSize, 0n, 0n, { gasLimit: 500_000 });
+      const tx = await pm.openPosition(marketId, false, randomSize, 0n, 0n, { gasLimit: 500_000 });
       await tx.wait();
       console.log(`[SEED] ${symbol} market ${marketId} — rebalanced +$${randomSize/1000000n} LOWER (was ${higher/100}% higher)`);
     } else if (higher < 2500) {
       // Too many LOWER — add HIGHER to rebalance
       const randomSize = BigInt((Math.floor(Math.random() * 50) + 50) * 1_000_000);
-      const tx = await pmSeeder.openPosition(marketId, true, randomSize, 0n, 0n, { gasLimit: 500_000 });
+      const tx = await pm.openPosition(marketId, true, randomSize, 0n, 0n, { gasLimit: 500_000 });
       await tx.wait();
       console.log(`[SEED] ${symbol} market ${marketId} — rebalanced +$${randomSize/1000000n} HIGHER (was ${higher/100}% higher)`);
     }
@@ -230,7 +223,7 @@ async function dynamicRebalance() {
         const seedAmt = BigInt(Math.min(needed, 500_000_000)); // cap at $500 per rebalance
 
         console.log(`[DYNB] ${sym} ${secsLeft}s left — price ${priceDelta >= 0 ? "+" : ""}${priceDelta.toFixed(2)}% → seeding $${Number(seedAmt)/1e6} ${winningIsHigher ? "HIGHER" : "LOWER"} (target ${targetWinningPct.toFixed(0)}%)`);
-        const tx = await pmSeeder.openPosition(mid, winningIsHigher, seedAmt, 0n, 0n, { gasLimit: 500_000 });
+        const tx = await pm.openPosition(mid, winningIsHigher, seedAmt, 0n, 0n, { gasLimit: 500_000 });
         await tx.wait();
       } catch (err) {
         // Non-fatal — skip this market if rebalance fails
