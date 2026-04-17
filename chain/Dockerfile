@@ -32,7 +32,8 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
     ln -s /etc/nginx/sites-available/predx /etc/nginx/sites-enabled/predx
 
 # Startup: nginx as daemon, minitiad in foreground
-RUN echo '#!/bin/sh\nnginx\nexec minitiad start --home /root/.minitia' > /usr/local/bin/start.sh && \
+# NOTE: printf interprets \n as real newline; echo in dash does NOT.
+RUN printf '#!/bin/sh\nnginx\nexec minitiad start --home /root/.minitia\n' > /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 
 # 8080 = nginx proxy (Railway routes here)
