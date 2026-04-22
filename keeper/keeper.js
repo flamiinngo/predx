@@ -311,6 +311,13 @@ async function checkSettlements() {
 }
 
 const seededMarkets = new Set();
+// Prevent unbounded memory growth — keep only the last 200 market IDs
+function trackSeeded(id) {
+  seededMarkets.add(id);
+  if (seededMarkets.size > 200) {
+    seededMarkets.delete(seededMarkets.values().next().value);
+  }
+}
 
 async function checkSeeding() {
   for (const sym of SYMBOLS) {
@@ -325,7 +332,7 @@ async function checkSeeding() {
         const now = BigInt(Math.floor(Date.now() / 1000));
         if (market.endTime - now < 10n) continue;
         await seedMarket(mid, sym);
-        seededMarkets.add(mid.toString());
+        trackSeeded(mid.toString());
       } catch {}
     }
   }
@@ -487,4 +494,18 @@ async function run() {
   }, 5000);
 }
 
-run().catch(console.error);
+// ─── Process-level crash guards ───────────────────────────────────────────
+// Prevent any unhandled rejection or exception from killing the process.
+// The tick loop already wraps everything in try/catch — these are a last resort.
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception (continuing):", err.message);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled rejection (continuing):", reason?.message ?? reason);
+});
+
+run().catch((err) => {
+  // run() itself threw — log and restart the loop after 10s
+  console.error("[FATAL] run() crashed — restarting in 10s:", err.message);
+  setTimeout(() => run().catch(console.error), 10_000);
+});
