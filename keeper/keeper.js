@@ -18,6 +18,7 @@ if (!PRIVATE_KEY || !SLTP_ADDR || !SETTLEMENT_ADDR || !FACTORY_ADDR) {
 
 const SETTLEMENT_ABI = [
   "function settleExpiredMarkets() external",
+  "function bootstrapMarkets() external",
   "event MarketSettled(uint256 indexed marketId, string symbol, bool higherWon, uint256 settlementPrice, uint256 totalPayout, uint256 winnerCount)",
 ];
 const FACTORY_ABI = [
@@ -391,6 +392,63 @@ async function wireNativeOracle() {
   }
 }
 
+// ─── Chain health check ────────────────────────────────────────────────────
+// Tracks whether the chain RPC was unreachable last tick. When the chain comes
+// back we reset NonceManagers (so stale in-memory nonces don't cause sequence
+// mismatch) and clear seededMarkets (so new markets get seeded fresh).
+let chainWasDown = false;
+let rpcFailures  = 0;
+
+async function checkChainHealth() {
+  try {
+    await provider.getBlockNumber();
+    if (chainWasDown) {
+      console.log("[RPC] Chain back online — resetting nonce managers & re-seeding");
+      wallet.reset();
+      seederWallet.reset();
+      seededMarkets.clear();
+      chainWasDown = false;
+      rpcFailures  = 0;
+      // Re-run startup tasks after recovery
+      await ensureApproval();
+      await ensureMarketsExist();
+    }
+    return true;
+  } catch (err) {
+    rpcFailures++;
+    chainWasDown = true;
+    if (rpcFailures === 1 || rpcFailures % 12 === 0) {
+      console.log(`[RPC] Chain unreachable (attempt ${rpcFailures}) — pausing until recovery`);
+    }
+    return false;
+  }
+}
+
+// If no active market exists for any symbol (e.g. after a long outage where
+// markets expired and settlement never ran) bootstrap all 9 markets fresh.
+async function ensureMarketsExist() {
+  try {
+    // First try settling any expired-but-unsettled markets
+    await checkSettlements();
+
+    // Check if we still have no active markets
+    let anyActive = false;
+    for (const sym of SYMBOLS) {
+      const mid = await factory.getActiveMarketId(sym, 0);
+      if (mid !== 0n) { anyActive = true; break; }
+    }
+    if (anyActive) return;
+
+    console.log("[BOOT] No active markets — bootstrapping all symbols/timeframes...");
+    const tx = await settlement.bootstrapMarkets({ gasLimit: 2_000_000 });
+    await tx.wait();
+    console.log("[BOOT] ✓ Markets bootstrapped");
+    seededMarkets.clear(); // seed the freshly created markets
+  } catch (err) {
+    console.error("[BOOT] Bootstrap failed (non-fatal):", err.message?.slice(0, 150));
+  }
+}
+
 async function run() {
   console.log("PredX Keeper starting...");
   console.log(`Wallet : ${wallet.address}`);
@@ -402,7 +460,8 @@ async function run() {
   await wireNativeOracle();
 
   await ensureApproval();
-  await fundVault();   // ensure vault has enough USDC before any settlement
+  await fundVault();          // ensure vault has enough USDC before any settlement
+  await ensureMarketsExist(); // settle stale markets / bootstrap if none exist
 
   let tick    = 0;
   let running = false;  // prevent concurrent ticks causing nonce collisions
@@ -411,12 +470,16 @@ async function run() {
     running = true;
     tick++;
     try {
+      // Health check first — skip all work if chain is down, reset on recovery
+      if (!(await checkChainHealth())) return;
+
       await checkSLTP();
       await dynamicRebalance();         // every tick — markets near expiry need fast response
       if (tick % 2 === 0) await checkSettlements();
       if (tick % 3 === 0) await syncPrices();
       if (tick % 4 === 0) await checkSeeding();
       if (tick % 12 === 0) await logStatus();
+      if (tick % 30 === 0) await ensureMarketsExist(); // safety net: re-check every 2.5 min
       if (tick % 60 === 0) await fundVault();
     } finally {
       running = false;
